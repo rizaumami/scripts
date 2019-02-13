@@ -1,0 +1,105 @@
+#!/usr/bin/env bash
+
+# Chroothelper: A helper script to automate chroot process.
+#
+# Sahri Riza Umami
+#   v0.1 - 2019/02/06 23:28:03
+#
+# LICENSE ----------------------------------------------------------------------
+#
+# This is free and unencumbered software released into the public domain.
+#
+# Anyone is free to copy, modify, publish, use, compile, sell, or
+# distribute this software, either in source code form or as a compiled
+# binary, for any purpose, commercial or non-commercial, and by any
+# means.
+#
+# In jurisdictions that recognize copyright laws, the author or authors
+# of this software dedicate any and all copyright interest in the
+# software to the public domain. We make this dedication for the benefit
+# of the public at large and to the detriment of our heirs and
+# successors. We intend this dedication to be an overt act of
+# relinquishment in perpetuity of all present and future rights to this
+# software under copyright law.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+# IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR
+# OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+# ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+# OTHER DEALINGS IN THE SOFTWARE.
+#
+# For more information, please refer to <http://unlicense.org>
+#
+# ------------------------------------------------------------------------------
+
+# VARIABLES --------------------------------------------------------------------
+
+CHROOT_DIR="${2%/}"
+
+# FUNCTIONS --------------------------------------------------------------------
+
+change_root() {
+  sudo LANG=C chroot "$CHROOT_DIR" /bin/bash
+}
+
+mount_host_to_target() {
+  sudo mount --bind /dev "$CHROOT_DIR"/dev
+  sudo mount -t devpts /dev/pts "$CHROOT_DIR"/dev/pts
+  sudo mount -t proc /proc "$CHROOT_DIR"/proc
+  sudo mount -t sysfs /sys "$CHROOT_DIR"/sys
+  if file "$CHROOT_DIR/etc/resolv.conf" | grep -q 'symbolic link'; then
+    sudo mount --bind /run "$CHROOT_DIR"/run
+  else
+    sudo mount --bind /etc/resolv.conf "$CHROOT_DIR"/etc/resolv.conf
+  fi
+}
+
+umount_target() {
+  sudo umount "$CHROOT_DIR"/dev/pts
+  sudo umount "$CHROOT_DIR"/dev
+  sudo umount "$CHROOT_DIR"/{run,sys,proc}
+  sudo umount "$CHROOT_DIR"/etc/resolv.conf
+}
+
+usage() {
+  printf '%s\n' "
+  A helper script to automate chroot process.
+
+  Usage: ${0##*/} OPTION TARGET
+
+  OPTION :
+    m, mount      mounting /proc, /sys, /dev, /dev/pts, /run and /etc/resolv.conf
+    u, unmount    unmounting mounted folders and files
+    c, chroot     mount host and then change root to TARGET directory
+
+  TARGET is the directory where we're going to change root into.
+"
+  exit 0
+}
+
+# MAIN -------------------------------------------------------------------------
+
+# Need two arguments; OPTION and TARGET
+if [[ "$#" -ne 2 ]]; then
+  usage
+fi
+
+# Exit early if target directory does not found.
+[[ ! -d $2 ]] && printf '\n  %s\n\n' 'Target does not exist.' && exit
+
+case "$1" in
+  c|chroot)
+    mount_host_to_target && change_root
+  ;;
+  m|mount)
+    mount_host_to_target
+  ;;
+  u|umount)
+    umount_target
+  ;;
+  *)
+    usage
+  ;;
+esac

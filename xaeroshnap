@@ -1,0 +1,243 @@
+#!/usr/bin/env bash
+
+# Xaeroshnap: A bash script for adding aero style window snapping to Linux DE.
+# Dependencies: wmctrl and xdotool.
+#
+# Aerosnap is a (Microsoft's) windows management feature that allows you to
+# arrange open windows just by dragging and dropping a window to different
+# edges of the screen.
+# This script will enable snapping a window to left, top, top left, top right,
+# right, bottom, bottom left and bottom right of the screen.
+# Consult your Deskrop Environment manual to manually assign each snaps
+# keyboard shortcuts.
+#
+# Sahri Riza Umami
+#   v0.2 - 2019/02/13 17:51:18
+#        - Remove double snap to maximize
+#   v0.1 - 2019/01/30 20:29:20
+#        - Initial release
+#
+# LICENSE ----------------------------------------------------------------------
+#
+# This is free and unencumbered software released into the public domain.
+#
+# Anyone is free to copy, modify, publish, use, compile, sell, or
+# distribute this software, either in source code form or as a compiled
+# binary, for any purpose, commercial or non-commercial, and by any
+# means.
+#
+# In jurisdictions that recognize copyright laws, the author or authors
+# of this software dedicate any and all copyright interest in the
+# software to the public domain. We make this dedication for the benefit
+# of the public at large and to the detriment of our heirs and
+# successors. We intend this dedication to be an overt act of
+# relinquishment in perpetuity of all present and future rights to this
+# software under copyright law.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+# IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR
+# OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+# ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+# OTHER DEALINGS IN THE SOFTWARE.
+#
+# For more information, please refer to <http://unlicense.org>
+#
+# ------------------------------------------------------------------------------
+
+# VARIABLES --------------------------------------------------------------------
+
+WID=$(xdotool getactivewindow)
+# Get display's geometry and save the values as an array
+IFS=' ' read -r -a DIMENSIONS <<< "$(xdotool getdisplaygeometry)"
+WIDTH=${DIMENSIONS[0]}
+HEIGHT=${DIMENSIONS[1]}
+HW=$((WIDTH/2))
+HH=$((HEIGHT/2))
+QW=$((WIDTH/2))
+QH=$((HEIGHT/2))
+
+# Get window's geometry and save the values as an array
+mapfile -t GEO < <(xdotool getwindowgeometry --shell "$WID" | awk -F= '{print $2}')
+
+# FUNCTIONS --------------------------------------------------------------------
+
+full_screen() {
+  # Some applications window are troublesome when it maximized into fullscreen,
+  # e.g Telegram Desktop. I was unable to find a way to minimize a maximized
+  # Telegram Desktop window.
+  # As a hack; we just maximized a window into its full width - 1 and
+  # full height - 1 so the window wont go full screen and still manageable by
+  # wmctrl.
+  wmctrl -r :ACTIVE: -b add,maximized_vert \
+  && wmctrl -r :ACTIVE: -b add,maximized_horz \
+  && wmctrl -r :ACTIVE: -e 0,0,0,$((WIDTH-1)),$((HEIGHT-1))
+}
+
+is_snapped_to_the_bottom() {
+  [[ ${GEO[2]} -gt $QH && ${GEO[4]} -le $HH ]] && return 0 || return 1
+}
+
+is_snapped_to_the_left() {
+  [[ ${GEO[1]} -lt $QW && ${GEO[3]} -le $HW ]] && return 0 || return 1
+}
+
+is_snapped_to_the_right() {
+  [[ ${GEO[1]} -ge $HW && ${GEO[3]} -le $HW ]] && return 0 || return 1
+}
+
+is_snapped_to_the_top() {
+  [[ ${GEO[2]} -lt $QH && ${GEO[4]} -le $HH ]] && return 0 || return 1
+}
+
+snap_to_bottom() {
+  wmctrl -r :ACTIVE: -b add,maximized_horz \
+  && wmctrl -r :ACTIVE: -b remove,maximized_vert \
+  && wmctrl -r :ACTIVE: -e 0,0,"${HH}","${WIDTH}","${HH}"
+}
+
+snap_to_bottom_left() {
+  wmctrl -r :ACTIVE: -b remove,maximized_vert \
+  && wmctrl -r :ACTIVE: -b remove,maximized_horz \
+  && wmctrl -r :ACTIVE: -e 0,0,"${HH}","${HW}","${HH}"
+}
+
+snap_to_bottom_right() {
+  wmctrl -r :ACTIVE: -b remove,maximized_vert \
+  && wmctrl -r :ACTIVE: -b remove,maximized_horz \
+  && wmctrl -r :ACTIVE: -e 0,"${HW}","${HH}","${HW}","${HH}"
+}
+
+snap_to_left() {
+  wmctrl -r :ACTIVE: -b add,maximized_vert \
+  && wmctrl -r :ACTIVE: -b remove,maximized_horz \
+  && wmctrl -r :ACTIVE: -e 0,0,0,"${HW}","${HEIGHT}"
+}
+
+snap_to_right() {
+  wmctrl -r :ACTIVE: -b add,maximized_vert \
+  && wmctrl -r :ACTIVE: -b remove,maximized_horz \
+  && wmctrl -r :ACTIVE: -e 0,"${HW}",0,"${HW}","${HEIGHT}"
+}
+
+snap_to_top() {
+  wmctrl -r :ACTIVE: -b add,maximized_horz \
+  && wmctrl -r :ACTIVE: -b remove,maximized_vert \
+  && wmctrl -r :ACTIVE: -e 0,0,0,"${WIDTH}","${HH}"
+}
+
+snap_to_top_left() {
+  wmctrl -r :ACTIVE: -b remove,maximized_vert \
+  && wmctrl -r :ACTIVE: -b remove,maximized_horz \
+  && wmctrl -r :ACTIVE: -e 0,0,0,"${HW}","${HH}"
+}
+
+snap_to_top_right() {
+  wmctrl -r :ACTIVE: -b remove,maximized_vert \
+  && wmctrl -r :ACTIVE: -b remove,maximized_horz \
+  && wmctrl -r :ACTIVE: -e 0,"${HW}",0,"${HW}","${HH}"
+}
+
+print_usage() {
+  printf '%s\n' "
+  A bash script for adding aero style window snapping to Linux DE.
+  Dependencies: wmctrl and xdotool.
+
+  Usage: ${0##*/} SNAP
+
+  SNAP:
+    -h, --help            show this message and exit
+    l, --left             snap active window to left of screen
+    r, --right            snap active window to right of screen
+    t, --top              snap active window to top of screen
+    tl, --top-left        snap active window to top left of screen
+    tr, --top-right       snap active window to top right of screen
+    b, --bottom           snap active window to bottom of screen
+    bl, --bottom-left     snap active window to bottom left of screen
+    br, --bottom-right    snap active window to bottom right of screen
+"
+}
+
+# MAIN -------------------------------------------------------------------------
+
+# Limit script's argument to 1
+[[ "$#" -gt 1 ]] && print_usage
+
+case "$1" in
+  l|--left)
+    if is_snapped_to_the_right && is_snapped_to_the_top; then
+      snap_to_top
+    elif is_snapped_to_the_right && is_snapped_to_the_bottom; then
+      snap_to_bottom
+    elif is_snapped_to_the_right; then
+      snap_to_left
+    elif is_snapped_to_the_top; then
+      snap_to_top_left
+    elif is_snapped_to_the_bottom; then
+      snap_to_bottom_left
+    else
+      snap_to_left
+    fi
+  ;;
+  r|--right)
+    if is_snapped_to_the_left && is_snapped_to_the_top; then
+      snap_to_top
+    elif is_snapped_to_the_left && is_snapped_to_the_bottom; then
+      snap_to_bottom
+    elif is_snapped_to_the_left; then
+      snap_to_right
+    elif is_snapped_to_the_top; then
+      snap_to_top_right
+    elif is_snapped_to_the_bottom; then
+      snap_to_bottom_right
+    else
+      snap_to_right
+    fi
+  ;;
+  t|--top)
+    if is_snapped_to_the_left && is_snapped_to_the_bottom; then
+      snap_to_left
+    elif is_snapped_to_the_left; then
+      snap_to_top_left
+    elif is_snapped_to_the_right && is_snapped_to_the_bottom; then
+      snap_to_right
+    elif is_snapped_to_the_right; then
+      snap_to_top_right
+    elif is_snapped_to_the_bottom; then
+      full_screen
+    else
+      snap_to_top
+    fi
+  ;;
+  tl|--top-left)
+    snap_to_top_left
+  ;;
+  tr|--top-right)
+    snap_to_top_right
+  ;;
+  b|--bottom)
+    if is_snapped_to_the_left && is_snapped_to_the_top; then
+      snap_to_left
+    elif is_snapped_to_the_left; then
+      snap_to_bottom_left
+    elif is_snapped_to_the_right && is_snapped_to_the_top; then
+      snap_to_right
+    elif is_snapped_to_the_right; then
+      snap_to_bottom_right
+    elif is_snapped_to_the_top; then
+      full_screen
+    else
+      snap_to_bottom
+    fi
+  ;;
+  bl|--bottom-left)
+    snap_to_bottom_left
+  ;;
+  br|--bottom-right)
+    snap_to_bottom_right
+  ;;
+  -h|--help|*)
+    print_usage
+  ;;
+esac

@@ -1,0 +1,123 @@
+#!/usr/bin/env bash
+
+# Shellcheck-wiki: a script to read shellcheck error wiki.
+#
+# When shellcecking a bash script, shellcheck will print the syntax errors
+# accompanied with its shellcheck code for further explanation.
+#
+# Unfortunately these explanation, AFAIK, can only be accessed online.
+#
+# HOW TO:
+#   - Install mdp, a command-line based markdown presentation tool
+#   - Type <shellcheck error code> to read error explanation.
+#
+# Sahri Riza Umami
+#   v0.3 - 2019/02/13 10:27:28
+#        - Accept number only code
+#        - Limit to one argument
+#   v0.2 - 2019/02/03 14:45:25
+#        - Translated to english
+#        - Online check
+#   v0.1 - 2018/11/27 18:46:33
+#        - Initial release
+#
+# LICENSE ----------------------------------------------------------------------
+#
+# This is free and unencumbered software released into the public domain.
+#
+# Anyone is free to copy, modify, publish, use, compile, sell, or
+# distribute this software, either in source code form or as a compiled
+# binary, for any purpose, commercial or non-commercial, and by any
+# means.
+#
+# In jurisdictions that recognize copyright laws, the author or authors
+# of this software dedicate any and all copyright interest in the
+# software to the public domain. We make this dedication for the benefit
+# of the public at large and to the detriment of our heirs and
+# successors. We intend this dedication to be an overt act of
+# relinquishment in perpetuity of all present and future rights to this
+# software under copyright law.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+# IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR
+# OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+# ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+# OTHER DEALINGS IN THE SOFTWARE.
+#
+# For more information, please refer to <http://unlicense.org>
+#
+# ------------------------------------------------------------------------------
+
+# VARIABLES --------------------------------------------------------------------
+
+REMOTEWIKI='https://raw.githubusercontent.com/wiki/koalaman/shellcheck'
+# To use a local wiki, clone:
+#   git clone https://github.com/koalaman/shellcheck.wiki.git
+# And write its PATH as LOCALWIKI
+LOCALWIKI="$HOME/Documents/Software/git/shellcheck.wiki"
+
+# FUNCTIONS --------------------------------------------------------------------
+
+print_usage() {
+  printf '%s\n' "
+  Usage: ${0##*/} CODE
+
+  CODE is printed shellcheck code when it found error(s).
+
+  Example:
+    ${0##*/} SC2230
+    ${0##*/} 2230
+"
+  exit 0
+}
+
+get_wiki() {
+  # If local wiki is exist
+  if [[ -f $LOCALWIKI/${1^^}.md ]]; then
+    mdp "$LOCALWIKI/${1^^}.md"
+  else
+    # Check shellceck's GitHub wiki
+    if [[ -n $(wget -q --spider "$REMOTEWIKI/${1^^}.md" 2>/dev/null) ]]; then
+      wget -q "$REMOTEWIKI/${1^^}.md" -O - | mdp
+    else
+      printf '\e[33m%s\n\e[m' "
+  Wiki for ${1^^} not found.
+  Make sure you:
+    - type the number correctly, or
+    - have local wiki, or
+    - connected to internet
+      "
+    fi
+  fi
+}
+
+# MAIN -------------------------------------------------------------------------
+
+# Limit script's argument to 1
+[[ "$#" -gt 1 ]] && print_usage
+
+# Check if mdp is installed
+if [[ ! -f $(command -v mdp) ]]; then
+  printf '\e[31m%s\n\e[m' "
+  mdp not found!
+
+  mdp is a command-line based markdown presentation tool and needed by this
+  script to display shellceck's markdown formatted wiki file in terminal.
+  Please install it first.
+"
+  exit
+fi
+
+case "$1" in
+  [SsCc]*)
+    get_wiki "$1"
+  ;;
+  ([0-9]*)
+    get_wiki "SC$1"
+  ;;
+  -h|--help|*)
+    print_help
+  ;;
+esac
