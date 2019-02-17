@@ -10,7 +10,7 @@ A collection of scripts.
   ```
 
 - Edit `~/.bashrc` or `~/.bash_profile` or `~/.bash_login` or `~/.profile` to include `scripts` folder into our PATH. \
-For example, if the path to `scripts` folder is `$HOME/Software/script`. Insert lines below into one of the files above.
+For example, if the path to `scripts` folder is `$HOME/Software/scripts`. Insert lines below into one of the files above.
 
   ```bash
   if [ -d "$HOME/Software/scripts" ]; then
