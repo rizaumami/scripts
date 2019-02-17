@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 
+# DESCRIPTION ------------------------------------------------------------------
+#
 # Xaeroshnap: A bash script for adding aero style window snapping to Linux DE.
-# Dependencies: wmctrl and xdotool.
 #
 # Aerosnap is a (Microsoft's) windows management feature that allows you to
 # arrange open windows just by dragging and dropping a window to different
@@ -10,6 +11,13 @@
 # right, bottom, bottom left and bottom right of the screen.
 # Consult your Deskrop Environment manual to manually assign each snaps
 # keyboard shortcuts.
+#
+# DEPENDENCY -------------------------------------------------------------------
+#
+# - wmctrl
+# - xdotool
+#
+# CHANGELOG --------------------------------------------------------------------
 #
 # Sahri Riza Umami
 #   v0.2 - 2019/02/13 17:51:18
@@ -55,8 +63,8 @@ WIDTH=${DIMENSIONS[0]}
 HEIGHT=${DIMENSIONS[1]}
 HW=$((WIDTH/2))
 HH=$((HEIGHT/2))
-QW=$((WIDTH/2))
-QH=$((HEIGHT/2))
+QW=$((WIDTH/4))
+QH=$((HEIGHT/4))
 
 # Get window's geometry and save the values as an array
 mapfile -t GEO < <(xdotool getwindowgeometry --shell "$WID" | awk -F= '{print $2}')
@@ -157,9 +165,26 @@ print_usage() {
     bl, --bottom-left     snap active window to bottom left of screen
     br, --bottom-right    snap active window to bottom right of screen
 "
+  exit 0
 }
 
 # MAIN -------------------------------------------------------------------------
+
+# Checking dependencies:
+declare -a DEPS=(wmctrl xdotool)
+for ((NUM=${#DEPS[@]},i=0; i<NUM;i++)); do
+  if command -v "${DEPS[i]}" >/dev/null 2>&1 ; then
+    unset -v 'DEPS[i]'
+  fi
+done
+
+# Exit if dependency not found.
+if [[ "${#DEPS[@]}" -gt 0 ]]; then
+  printf '\e[31m!! %s\n\e[m'  'Package(s) not found'
+  printf '\e[33m:: %s\n\e[m' 'Install the proper distribution package for your system:'
+  printf '   - %s\n' "${DEPS[@]}"
+  exit 1
+fi
 
 # Limit script's argument to 1
 [[ "$#" -gt 1 ]] && print_usage
