@@ -1,0 +1,183 @@
+#!/usr/bin/env bash
+
+# DESCRIPTION ------------------------------------------------------------------
+#
+# Tdesktop: A script to manage Telegram Desktop config folders.
+# When this script is written, Telegram Desktop doesn't have multi accounts
+# feature. But, fortunately, it has option to use different config folder.
+# This script is a helper to manage configuration folder for each accounts so
+# we can have a pseudo multi accounts in Telegram Desktop.
+#
+# DEPENDENCY -------------------------------------------------------------------
+#
+# - telegram-desktop
+# - zenity
+#
+# CHANGELOG --------------------------------------------------------------------
+#
+# Sahri Riza Umami
+#
+# v0.1  - 2019/02/17 10:45:42
+#         Initial script
+#
+# LICENSE ----------------------------------------------------------------------
+#
+# This is free and unencumbered software released into the public domain.
+#
+# Anyone is free to copy, modify, publish, use, compile, sell, or
+# distribute this software, either in source code form or as a compiled
+# binary, for any purpose, commercial or non-commercial, and by any
+# means.
+#
+# In jurisdictions that recognize copyright laws, the author or authors
+# of this software dedicate any and all copyright interest in the
+# software to the public domain. We make this dedication for the benefit
+# of the public at large and to the detriment of our heirs and
+# successors. We intend this dedication to be an overt act of
+# relinquishment in perpetuity of all present and future rights to this
+# software under copyright law.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+# IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR
+# OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+# ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+# OTHER DEALINGS IN THE SOFTWARE.
+#
+# For more information, please refer to <http://unlicense.org>
+#
+# ------------------------------------------------------------------------------
+
+# VARIABLES --------------------------------------------------------------------
+
+# Path to telegram-desktop binary, change if it has a different name or path.
+TDESKTOP=$(command -v telegram-desktop)
+
+# Change if you want to use other dir than used by Telegram Desktop default
+CONFIGDIR="$HOME/.local/share"
+
+# FUNCTIONS --------------------------------------------------------------------
+
+dir_is_exist() {
+  [[ -d "${CONFIGDIR%/}/TelegramDesktop-$1" ]] && return 0 || return 1
+}
+
+# Print message in brown.
+print_q() {
+  printf '\e[33m:: %s\n\e[m' "$@"
+}
+
+run_tdesktop() {
+  $TDESKTOP -many -workdir "$1"  &>/dev/null &
+}
+
+print_usage() {
+  printf '%s\n' "
+  ${0##*/} is a helper script to manage Telegram Desktop configuration folders.
+
+  Usage: ${0##*/} OPTION NAME
+
+  OPTION:
+    -h, --help      print this text
+    ls, list        list of Telegram Desktop config folder
+    n, new          create new config folder
+    o, open         run Telegram Desktop using NAME config
+    rm, remove      remove a config folder
+
+  NAME is the configuration folder name.
+
+  Example:
+    ${0##*/} list         - list existing Telegram Desktop configs
+    ${0##*/} new kuncen   - create a new kuncen config folder
+    ${0##*/} open kuncen  - run Telegram Desktop using kuncen config
+    ${0##*/} rm kuncen    - delete kuncen config folder
+"
+}
+
+# MAIN -------------------------------------------------------------------------
+
+# Check dependencies
+[[ -z $TDESKTOP ]] && print_q 'Telegram Desktop binary not found.' && exit 1
+[[ -z $(command -v zenity) ]] && print_q 'Zenity not found.' && exit 1
+
+cd "$CONFIGDIR" || exit 1
+
+# Create an array of Telegram Desktop config folders
+mapfile -t TGACCOUNT < <(find . -maxdepth 1 -type d -name "TelegramDesktop*" \
+  | sort | awk -F\/ '{print $2}')
+
+# Run zenity based GUI if this script executed without argument(s)
+if [[ "$#" -eq 0 ]]; then
+  MENU=$(zenity \
+    --width=400 --height=400 \
+    --list --radiolist \
+    --title="Multi Account Telegram Desktop" \
+    --text="<b>Select Telegram account:</b>\n<i>Run</i> ${0##*/} -h<i> to display help text.</i>" \
+    --column='' --column='Telegram Config' $(printf " \'\' %s" ${TGACCOUNT[@]}))
+
+  [[ -n $MENU ]] && run_tdesktop "$CONFIGDIR/$MENU"
+fi
+
+# If this script is executed with only one argument
+if [[ "$#" -eq 1 ]]; then
+  case "$1" in
+    ls|list)
+      print_q 'List of Telegram Desktop config(s):'
+      printf '   - %s\n' "${TGACCOUNT[@]}"
+    ;;
+    *)
+      print_usage
+    ;;
+  esac
+fi
+
+# If this script executed with two arguments
+if [[ "$#" -eq 2 ]]; then
+  case "$1" in
+    n|new)
+      if dir_is_exist "$2"; then
+        print_q "${CONFIGDIR%/}/TelegramDesktop-$2 already exist."
+      else
+        mkdir -p "${CONFIGDIR%/}/TelegramDesktop-$2"
+        print_q "${CONFIGDIR%/}/TelegramDesktop-$2 has been created." \
+        'You want to open it now? (yY[nN])'
+        read -rp ' ' opennewconfig
+
+        case "$opennewconfig" in
+          y|Y)
+            run_tdesktop "${CONFIGDIR%/}/TelegramDesktop-$2"
+          ;;
+        esac
+      fi
+    ;;
+    o|open)
+      if dir_is_exist "$2"; then
+        run_tdesktop "${CONFIGDIR%/}/TelegramDesktop-$2"
+      else
+        print_q "${CONFIGDIR%/}/TelegramDesktop-$2 not found."
+      fi
+    ;;
+    rm|remove)
+      if dir_is_exist "$2"; then
+        print_q 'Are you sure? (yY[nN])'
+        read -rp ' ' confirmdelete
+
+        case "$confirmdelete" in
+          y|Y)
+            rm -r "${CONFIGDIR%/}/TelegramDesktop-$2"
+            print_q "${CONFIGDIR%/}/TelegramDesktop-$2 has been deleted."
+          ;;
+        esac
+      else
+        print_q "${CONFIGDIR%/}/TelegramDesktop-$2 not found."
+      fi
+    ;;
+    *)
+      print_usage
+    ;;
+  esac
+fi
+
+# Limit to two arguments
+[[ "$#" -gt 2 ]] && print_usage

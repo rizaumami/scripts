@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+# DESCRIPTION ------------------------------------------------------------------
+#
 # Shellcheck-wiki: a script to read shellcheck error wiki.
 #
 # When shellcecking a bash script, shellcheck will print the syntax errors
@@ -10,6 +12,13 @@
 # HOW TO:
 #   - Install mdp, a command-line based markdown presentation tool
 #   - Type <shellcheck error code> to read error explanation.
+#
+# DEPENDENCY -------------------------------------------------------------------
+#
+# - wget
+# - mdp
+#
+# CHANGELOG --------------------------------------------------------------------
 #
 # Sahri Riza Umami
 #   v0.3 - 2019/02/13 10:27:28
