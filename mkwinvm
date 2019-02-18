@@ -1,0 +1,273 @@
+#!/usr/bin/env bash
+
+# DESCRIPTION ------------------------------------------------------------------
+#
+# Mkwinvm: Create Windows VirtualBox guest on Linux host.
+# This script is written with these points in mind:
+# - ThinkPad T520
+# - RAM 16 GB
+# - BIOS instead of UEFI
+# - Debian Sid
+#
+# Modify VBoxManage commands in create_vm function to fit your need.
+#
+# DEPENDENCY -------------------------------------------------------------------
+#
+# - dmidecode
+# - virtualbox
+#
+# CHANGELOG --------------------------------------------------------------------
+#
+# Sahri Riza Umami
+#   v0.1  - 2019/02/18 19:24:27
+#
+# LICENSE ----------------------------------------------------------------------
+#
+# This is free and unencumbered software released into the public domain.
+#
+# Anyone is free to copy, modify, publish, use, compile, sell, or
+# distribute this software, either in source code form or as a compiled
+# binary, for any purpose, commercial or non-commercial, and by any
+# means.
+#
+# In jurisdictions that recognize copyright laws, the author or authors
+# of this software dedicate any and all copyright interest in the
+# software to the public domain. We make this dedication for the benefit
+# of the public at large and to the detriment of our heirs and
+# successors. We intend this dedication to be an overt act of
+# relinquishment in perpetuity of all present and future rights to this
+# software under copyright law.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+# IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR
+# OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+# ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+# OTHER DEALINGS IN THE SOFTWARE.
+#
+# For more information, please refer to <http://unlicense.org>
+#
+# ------------------------------------------------------------------------------
+
+# VARIABLES --------------------------------------------------------------------
+
+# Path to VBox VMs folder
+VBOXVMS="$HOME/VMs/VirtualBox VMs"
+# Guest operating systems presently known to VirtualBox.
+# Use command: VBoxManage list ostypes
+OSTYPE="Windows${2}_64"
+VM_NAME="$1"
+VM_DISK="${1,,}x64.vdi"
+# Path where you want to store the SLIC.bin file
+SLIC_PATH="$VBOXVMS/$VM_NAME/SLIC.bin"
+CFG_PATH='VBoxInternal/Devices/pcbios/0/Config'
+SYS_SLIC="/sys/firmware/acpi/tables/SLIC"
+
+# FUNCTIONS --------------------------------------------------------------------
+
+# Print message in brown.
+print_b() {
+  printf '\e[33m:: %s\n\e[m' "$@"
+}
+
+create_vm() {
+  print_b "Keep VM definition in $VBOXVMS"
+  VBoxManage setproperty machinefolder "$VBOXVMS"
+
+  print_b "Creating $VM_NAME"
+  VBoxManage createvm --name "$VM_NAME" --register
+
+  # Import BIOS, system, motherboard and chassis so the guest machine is similar
+  # to the real hardware
+  print_b 'Importing hardwware properties'
+  VSETED="VBoxManage setextradata $(VBoxManage showvminfo "$VM_NAME" | awk '/^UUID/{print $2}')"
+
+  $VSETED $CFG_PATH/DmiBIOSVendor         "string:$(sudo dmidecode -s bios-vendor)"
+  $VSETED $CFG_PATH/DmiBIOSVersion        "string:$(sudo dmidecode -s bios-version)"
+  $VSETED $CFG_PATH/DmiBIOSReleaseDate    "string:$(sudo dmidecode -s bios-release-date)"
+  $VSETED $CFG_PATH/DmiBIOSReleaseMajor   "$(sudo dmidecode -s bios-version | awk -F'[(]' '{print substr($2,0,1)}')"
+  $VSETED $CFG_PATH/DmiBIOSReleaseMinor   "$(sudo dmidecode -s bios-version | awk -F'[(]' '{print substr($2,3,2)}')"
+  $VSETED $CFG_PATH/DmiBIOSFirmwareMajor  "$(sudo dmidecode -t 0 | awk -F': ' '/Firmware Revision/{print substr($2,0,1)}')"
+  $VSETED $CFG_PATH/DmiBIOSFirmwareMinor  "$(sudo dmidecode -t 0 | awk -F'.' '/Firmware Revision/{print $2}')"
+
+  $VSETED $CFG_PATH/DmiSystemVendor       "string:$(sudo dmidecode -s system-manufacturer)"
+  $VSETED $CFG_PATH/DmiSystemProduct      "string:$(sudo dmidecode -s system-product-name)"
+  $VSETED $CFG_PATH/DmiSystemVersion      "string:$(sudo dmidecode -s system-version)"
+  $VSETED $CFG_PATH/DmiSystemSerial       "string:$(sudo dmidecode -s system-serial-number)"
+  $VSETED $CFG_PATH/DmiSystemUuid         "string:$(sudo dmidecode -s system-uuid)"
+  $VSETED $CFG_PATH/DmiSystemSKU          "<EMPTY>"     # "SKU Number" from "dmidecode -t1"
+  $VSETED $CFG_PATH/DmiSystemFamily       "string:$(sudo dmidecode -t 1 | awk -F': ' '/Family/{print $2}')"
+
+  $VSETED $CFG_PATH/DmiBoardVendor        "string:$(sudo dmidecode -s baseboard-manufacturer)"
+  $VSETED $CFG_PATH/DmiBoardProduct       "string:$(sudo dmidecode -s baseboard-product-name)"
+  $VSETED $CFG_PATH/DmiBoardVersion       "<EMPTY>"     # "Version" from "dmidecode -t2"
+  $VSETED $CFG_PATH/DmiBoardSerial        "string:$(sudo dmidecode -s baseboard-serial-number)"
+
+  $VSETED $CFG_PATH/DmiChassisAssetTag    "<EMPTY>"     # "Asset Tag" from "dmidecode -t3"
+  $VSETED $CFG_PATH/DmiChassisSerial      "string:$(sudo dmidecode -s chassis-serial-number)"
+  $VSETED $CFG_PATH/DmiChassisVendor      "string:$$(sudo dmidecode -s chassis-manufacturer)"
+  $VSETED $CFG_PATH/DmiChassisVersion     "<EMPTY>"     # "Version" from "dmidecode -t3"
+
+  # NOTE: VBox Manager failed to delete SLIC.bin when we delete its VM.
+  if [[ -e $SYS_SLIC ]]; then
+    sudo dd if="$SYS_SLIC" of="$SLIC_PATH"
+    $VSETED VBoxInternal/Devices/acpi/0/Config/CustomTable "$SLIC_PATH"
+  fi
+
+  # Manage VM. See chapter 8 in VBox manual.
+  print_b "Changes the properties of $VM_NAME"
+  VBoxManage modifyvm "$VM_NAME" \
+  --ostype "$OSTYPE"  \
+  --memory 4096  \
+  --pagefusion off \
+  --vram 256 \
+  --acpi on \
+  --ioapic on \
+  --hpet on \
+  --hwvirtex on \
+  --nestedpaging on \
+  --largepages on \
+  --vtxvpid on \
+  --vtxux on \
+  --pae on \
+  --longmode off \
+  --cpus 2 \
+  --cpuhotplug off \
+  --cpuexecutioncap 100 \
+  --rtcuseutc off \
+  --monitorcount 1 \
+  --accelerate3d on \
+  --accelerate2dvideo on \
+  --firmware bios \
+  --chipset piix3 \
+  --boot1 disk \
+  --boot2 dvd \
+  --nic1 nat \
+  --nictype1 82540EM \
+  --cableconnected1 on \
+  --macaddress1 auto \
+  --mouse usb \
+  --keyboard usb \
+  --audio pulse \
+  --audiocontroller hda \
+  --clipboard bidirectional \
+  --draganddrop bidirectional \
+  --usb on \
+  --usbehci on \
+  --snapshotfolder default \
+  --usbcardreader off \
+  --defaultfrontend default
+
+  print_b 'Set shared folder'
+  VBoxManage sharedfolder add "$VM_NAME" \
+    --name "$USER" \
+    --hostpath "$HOME" \
+    --automount
+
+  print_b 'Creating disk'
+  sudo VBoxManage createhd \
+    --filename "$VBOXVMS/$VM_NAME/$VM_DISK" \
+    --size 17408 \
+    --format VDI \
+    --variant Standard
+
+  sudo chown "$USER:$USER" "$VBOXVMS/$VM_NAME/"*
+
+  print_b 'Creating storage media'
+  VBoxManage storagectl "$VM_NAME" \
+    --name SATA \
+    --add sata \
+    --controller IntelAhci \
+    --hostiocache off \
+    --bootable on
+
+  print_b 'Mounting disk to storage media'
+  VBoxManage storageattach "$VM_NAME" \
+    --storagectl SATA \
+    --port 1 \
+    --device 0 \
+    --type hdd \
+    --medium "$VBOXVMS/$VM_NAME/$VM_DISK" \
+    --nonrotational on
+
+  print_b 'Mounting optical drive to storage media'
+  VBoxManage storageattach "$VM_NAME" \
+    --storagectl SATA \
+    --port 2 \
+    --device 0 \
+    --type dvddrive \
+    --medium emptydrive
+
+  print_b 'Done.'
+}
+
+print_usage() {
+  printf '%s\n' "
+  ${0##*/} is a helper script to create a VirtualBox Windows guest machine on
+  a Linux host.
+
+  Usage: ${0##*/} NAME WINDOWS_VERSION ARCHITECTURE
+
+  OPTION:
+    -h, --help      print this text
+
+  NAME is guest machine name.
+
+  WINDOWS_VERSION is Windows version. Only accept 7 and 10.
+
+  ARCHITECTURE is machine architecture. 32 or (default to) 64 bit.
+
+  Example:
+    - Create Windows 7 32 bit guest and set Windows as its name.
+
+      ${0##*/} Windows 7 32
+
+    - Create Windows 10 64 bit guest and set Windows 10 LTSC as its name.
+
+      ${0##*/} 'Windows 10 LTSC' 10
+"
+  exit 0
+}
+
+# MAIN -------------------------------------------------------------------------
+
+[[ "$#" -lt 1 || "$#" -gt 3 ]] && print_usage
+
+# Check if VM with same name has been created.
+if [[ -d "${VBOXVMS}/${1}" ]]; then
+  print_b "VM already exists in ${VBOXVMS}/${1}."
+  exit
+fi
+
+# Check dependencies
+declare -a DEPS=(dmidecode virtualbox)
+for ((NUM=${#DEPS[@]},i=0; i<NUM;i++)); do
+  if command -v "${DEPS[i]}" >/dev/null 2>&1 ; then
+    unset -v 'DEPS[i]'
+  fi
+done
+
+# Exit if dependency not found.
+if [[ "${#DEPS[@]}" -gt 0 ]]; then
+  print_q 'Package(s) not found'
+  print_q 'Install the proper distribution package for your system:'
+  printf '   - %s\n' "${DEPS[@]}"
+  exit 1
+fi
+
+case $2 in
+  7|10)
+    case $3 in
+      32)
+        OSTYPE="${OSTYPE/_64/}"
+        VM_DISK="${VM_DISK/x64/}"
+      ;;
+    esac
+  ;;
+  *)
+    print_usage
+  ;;
+esac
+
+create_vm
