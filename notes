@@ -1,0 +1,201 @@
+#!/usr/bin/env bash
+
+# DESCRIPTION ------------------------------------------------------------------
+#
+# notes is a simple note taking script.
+#
+# DEPENDENCY -------------------------------------------------------------------
+#
+# - mdp
+# - nano
+#
+# CHANGELOG --------------------------------------------------------------------
+#
+# Sahri Riza Umami
+# v0.1  - 2019/02/19 21:59:27
+#         Initial script
+#
+# LICENSE ----------------------------------------------------------------------
+#
+# This is free and unencumbered software released into the public domain.
+#
+# Anyone is free to copy, modify, publish, use, compile, sell, or
+# distribute this software, either in source code form or as a compiled
+# binary, for any purpose, commercial or non-commercial, and by any
+# means.
+#
+# In jurisdictions that recognize copyright laws, the author or authors
+# of this software dedicate any and all copyright interest in the
+# software to the public domain. We make this dedication for the benefit
+# of the public at large and to the detriment of our heirs and
+# successors. We intend this dedication to be an overt act of
+# relinquishment in perpetuity of all present and future rights to this
+# software under copyright law.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+# IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR
+# OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+# ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+# OTHER DEALINGS IN THE SOFTWARE.
+#
+# For more information, please refer to <http://unlicense.org>
+#
+# ------------------------------------------------------------------------------
+
+# VARIABLES --------------------------------------------------------------------
+
+declare TXTED STORAGE
+# Text editor to be used.
+TXTED="$(command -v nano) -Dlm$"
+# Path to notes storage.
+STORAGE="$HOME/Documents/Notes"
+
+# FUNCTIONS --------------------------------------------------------------------
+
+# Print message in brown.
+print_w() {
+  printf '\e[33m:: %s\n\e[m' "$@"
+}
+
+print_usage() {
+  printf '%s\n' "
+  ${0##*/} is a simple note taking script.
+
+  Usage: ${0##*/} OPTION INDEX NAME
+
+  OPTION:
+    -h, --help              print this text
+    cp, copy                copy a note to different filename
+    e, edit                 edit a note
+    f, find                 find string in notes filename
+    ls, list                list notes
+    mv, move, rn, rename    move or rename a note to different filename
+    rm, remove              remove or delete a note
+    s, search               search string in notes
+    v, view                 view a note
+
+  INDEX is a note's index number.
+
+  Used in copy and move, NAME is the new note's filename.
+
+  To copy, edit, move or delete a note, we need to get its index number first.
+
+  Example:
+    ${0##*/} ls               - list existing notes and its index number
+    ${0##*/} rm 2             - delete note number 2
+    ${0##*/} mv 2 'New File'  - move or rename note number 2 to 'New File'
+"
+}
+
+# MAIN -------------------------------------------------------------------------
+
+# Check if notes storage is exists.
+[[ -d $STORAGE ]] || mkdir -p "$STORAGE"
+# Move to notes storage. Exit if the path doesn't exists.
+cd "$STORAGE" || exit 1
+
+[[ $# -gt 3 ]] && print_usage
+
+if [[ "$#" -eq 0 ]]; then
+  # Note is differentiated by creation date. We will write to the same file if
+  # taking a note on a same day.
+  # Append a timestamp everytime we taking a note.
+  # Don't know why date +%X not working on my machine
+  printf '\n%s\n' "## $(date +%R:%S)" >> "$(date +%F)"
+  $TXTED "$(date +%F)"
+fi
+
+# Create an array for list of notes.
+mapfile -t NOTES < <(find . -type f | sort | awk -F[/] '{print $2}')
+
+MAXR=${#NOTES[*]}
+
+if [[ "$#" -eq 1 ]]; then
+  case $1 in
+    cp|copy|e|edit|ls|list|mv|move|rm|remove|rn|rename)
+      [[ $MAXR -gt 0 ]] && print_w 'Notes list:'
+      for i in "${!NOTES[@]}"; do
+        printf '   %s\n' "$((i+1)). ${NOTES[$i]}"
+      done
+    ;;
+    v|view)
+      if command -v mdp; then
+        mdp "$(date +%F)"
+      else
+        cat "$(date +%F)"
+      fi
+    ;;
+    *)
+      print_usage
+    ;;
+  esac
+fi
+
+# Check if second argument is an integer and its value is 2 or 3
+if [[ $2 != ?(-)+([0-9]) && $# -eq 2 || $# -eq 3 ]]; then
+  if [[ $2 -lt 1 || $MAXR -lt $2 ]]; then
+    print_w 'Index given is out of range.' \
+      "The index must be an integer and its value is min: 1 and max: $MAXR."
+    exit
+  fi
+fi
+
+NOTE=$((${2}-1))
+
+if [[ $# -eq 2 ]]; then
+  case $1 in
+    e|edit)
+      $TXTED "${NOTES[$NOTE]}"
+    ;;
+    rm|remove)
+      print_w "Are you sure want to delete ${NOTES[$NOTE]}? (yY[nN])"
+      read -rp ' ' confirmdelete
+
+      case "$confirmdelete" in
+        y|Y)
+          rm "${NOTES[$NOTE]}"
+          print_w "${NOTES[$NOTE]} has been deleted."
+        ;;
+      esac
+    ;;
+    s|search)
+      print_w 'Search result:'
+      grep -in --color "$2" -- *
+    ;;
+    st|search-title)
+      mapfile -t SEARCHRESULT < <(find . -type f  -name "*$2*" | sort \
+        | awk -F[/] '{print $2}')
+
+      print_w 'Search title result:'
+      for i in "${!SEARCHRESULT[@]}"; do
+        printf '   %s\n' "${i}. ${SEARCHRESULT[$i]}"
+      done
+    ;;
+    v|view)
+      if command -v mdp >/dev/null 2>&1; then
+        mdp "${NOTES[$NOTE]}"
+      else
+        cat "${NOTES[$NOTE]}"
+      fi
+    ;;
+    *)
+      print_usage
+    ;;
+  esac
+fi
+
+if [[ $# -eq 3 ]]; then
+  case $1 in
+    cp|copy)
+      cp -v "${NOTES[$NOTE]}" "$3"
+    ;;
+    mv|move|rn|rename)
+      mv -v "${NOTES[$NOTE]}" "$3"
+    ;;
+    *)
+      print_usage
+    ;;
+  esac
+fi
