@@ -4,6 +4,9 @@
 #
 # notes is a simple note taking script.
 #
+# The workflow is index based. So whatever you want to do with the note, better
+# to get its index first.
+#
 # DEPENDENCY -------------------------------------------------------------------
 #
 # - mdp
@@ -14,6 +17,8 @@
 # Sahri Riza Umami
 # v0.1  - 2019/02/19 21:59:27
 #         Initial script
+# v0.2  - 2019/02/23 01:09:32
+#         Only accept input number within array's items number
 #
 # LICENSE ----------------------------------------------------------------------
 #
@@ -46,7 +51,7 @@
 
 # VARIABLES --------------------------------------------------------------------
 
-declare TXTED STORAGE
+declare NOTE STORAGE TXTED
 # Text editor to be used.
 TXTED="$(command -v nano) -Dlm$"
 # Path to notes storage.
@@ -89,6 +94,14 @@ print_usage() {
 "
 }
 
+view_note() {
+  if command -v mdp >/dev/null 2>&1; then
+    mdp "$1"
+  else
+    cat "$1"
+  fi
+}
+
 # MAIN -------------------------------------------------------------------------
 
 # Check if notes storage is exists.
@@ -121,11 +134,7 @@ if [[ "$#" -eq 1 ]]; then
       done
     ;;
     v|view)
-      if command -v mdp; then
-        mdp "$(date +%F)"
-      else
-        cat "$(date +%F)"
-      fi
+      view_note "$(date +%F)"
     ;;
     *)
       print_usage
@@ -133,21 +142,29 @@ if [[ "$#" -eq 1 ]]; then
   esac
 fi
 
-# Check if second argument is an integer and its value is 2 or 3
-if [[ $2 != ?(-)+([0-9]) && $# -eq 2 || $# -eq 3 ]]; then
-  if [[ $2 -lt 1 || $MAXR -lt $2 ]]; then
-    print_w 'Index given is out of range.' \
-      "The index must be an integer and its value is min: 1 and max: $MAXR."
-    exit
-  fi
+# Bash array index number start at 0.
+# If user input is greater than or equal 1, substract by 1.
+if [[ $2 -ge 1 ]]; then
+  NOTE=$(($2-1))
+# If user input is lower than 1, make it higher than number of items number in
+# the array so the respective command would fail
+else
+  NOTE=$((MAXR+1))
 fi
-
-NOTE=$((${2}-1))
 
 if [[ $# -eq 2 ]]; then
   case $1 in
     e|edit)
       $TXTED "${NOTES[$NOTE]}"
+    ;;
+    f|find)
+      mapfile -t SEARCHRESULT < <(find . -type f  -name "*$2*" | sort \
+        | awk -F[/] '{print $2}')
+
+      print_w 'Search title result:'
+      for i in "${!SEARCHRESULT[@]}"; do
+        printf '   %s\n' "$((i+1)). ${SEARCHRESULT[$i]}"
+      done
     ;;
     rm|remove)
       print_w "Are you sure want to delete ${NOTES[$NOTE]}? (yY[nN])"
@@ -164,21 +181,8 @@ if [[ $# -eq 2 ]]; then
       print_w 'Search result:'
       grep -in --color "$2" -- *
     ;;
-    st|search-title)
-      mapfile -t SEARCHRESULT < <(find . -type f  -name "*$2*" | sort \
-        | awk -F[/] '{print $2}')
-
-      print_w 'Search title result:'
-      for i in "${!SEARCHRESULT[@]}"; do
-        printf '   %s\n' "${i}. ${SEARCHRESULT[$i]}"
-      done
-    ;;
     v|view)
-      if command -v mdp >/dev/null 2>&1; then
-        mdp "${NOTES[$NOTE]}"
-      else
-        cat "${NOTES[$NOTE]}"
-      fi
+      view_note "${NOTES[$NOTE]}"
     ;;
     *)
       print_usage
