@@ -51,7 +51,10 @@
 
 # VARIABLES --------------------------------------------------------------------
 
-declare NOTE STORAGE TXTED
+declare CURRENTNOTE NOTE STORAGE TXTED
+
+# Todays note
+CURRENTNOTE=$(printf '%(%F)T' '-1')
 # Text editor to be used.
 TXTED="$(command -v nano) -Dlm$"
 # Path to notes storage.
@@ -94,8 +97,10 @@ print_usage() {
 "
 }
 
+# mdp is a command-line based markdown presentation tool. Preferable to view
+# markdown formatted notes.
 view_note() {
-  if command -v mdp >/dev/null 2>&1; then
+  if command -v mdp &>/dev/null; then
     mdp "$1"
   else
     cat "$1"
@@ -115,9 +120,8 @@ if [[ "$#" -eq 0 ]]; then
   # Note is differentiated by creation date. We will write to the same file if
   # taking a note on a same day.
   # Append a timestamp everytime we taking a note.
-  # Don't know why date +%X not working on my machine
-  printf '\n%s\n' "## $(date +%R:%S)" >> "$(date +%F)"
-  $TXTED "$(date +%F)"
+  printf '\n%s\n' "## $(printf '%(%R:%S)T\n' '-1')" >> "$CURRENTNOTE"
+  $TXTED "$CURRENTNOTE"
 fi
 
 # Create an array for list of notes.
@@ -134,7 +138,7 @@ if [[ "$#" -eq 1 ]]; then
       done
     ;;
     v|view)
-      view_note "$(date +%F)"
+      view_note "$CURRENTNOTE"
     ;;
     *)
       print_usage
