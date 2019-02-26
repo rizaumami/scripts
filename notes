@@ -51,7 +51,7 @@
 
 # VARIABLES --------------------------------------------------------------------
 
-declare CURRENTNOTE NOTE STORAGE TXTED
+declare CURRENTNOTE MAXR NOTE STORAGE TXTED
 
 # Todays note
 CURRENTNOTE=$(printf '%(%F)T' '-1')
@@ -146,18 +146,16 @@ if [[ "$#" -eq 1 ]]; then
   esac
 fi
 
-# Bash array index number start at 0.
-# If user input is greater than or equal 1, substract by 1.
-if [[ $2 -ge 1 ]]; then
-  NOTE=$(($2-1))
-# If user input is lower than 1, make it higher than number of items number in
-# the array so the respective command would fail
-else
-  NOTE=$((MAXR+1))
-fi
-
-if [[ $# -eq 2 ]]; then
+if [[ $# -eq 2 || $# -eq 3 ]]; then
+  # Bash array index number start at 0.
+  # If user input is higher than 0, substracted by 1.
+  # If user input is lower than 1, make it higher than number of items number
+  # in the array so the respective command would fail
+  ((NOTE=$2>0?$(($2-1)):$((MAXR+1))))
   case $1 in
+    cp|copy)
+      cp -v "${NOTES[$NOTE]}" "$3"
+    ;;
     e|edit)
       $TXTED "${NOTES[$NOTE]}"
     ;;
@@ -169,6 +167,9 @@ if [[ $# -eq 2 ]]; then
       for i in "${!SEARCHRESULT[@]}"; do
         printf '   %s\n' "$((i+1)). ${SEARCHRESULT[$i]}"
       done
+    ;;
+    mv|move|rn|rename)
+      mv -v "${NOTES[$NOTE]}" "$3"
     ;;
     rm|remove)
       print_w "Are you sure want to delete ${NOTES[$NOTE]}? (yY[nN])"
@@ -187,20 +188,6 @@ if [[ $# -eq 2 ]]; then
     ;;
     v|view)
       view_note "${NOTES[$NOTE]}"
-    ;;
-    *)
-      print_usage
-    ;;
-  esac
-fi
-
-if [[ $# -eq 3 ]]; then
-  case $1 in
-    cp|copy)
-      cp -v "${NOTES[$NOTE]}" "$3"
-    ;;
-    mv|move|rn|rename)
-      mv -v "${NOTES[$NOTE]}" "$3"
     ;;
     *)
       print_usage

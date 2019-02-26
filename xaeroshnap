@@ -169,11 +169,10 @@ print_usage() {
 }
 
 # MAIN -------------------------------------------------------------------------
-
 # Checking dependencies:
 declare -a DEPS=(wmctrl xdotool)
 for ((NUM=${#DEPS[@]},i=0; i<NUM;i++)); do
-  if command -v "${DEPS[i]}" >/dev/null 2>&1 ; then
+  if command -v "${DEPS[i]}" &>/dev/null ; then
     unset -v 'DEPS[i]'
   fi
 done

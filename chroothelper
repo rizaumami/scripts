@@ -55,7 +55,7 @@ mount_host_to_target() {
   sudo mount -t devpts /dev/pts "$CHROOT_DIR"/dev/pts
   sudo mount -t proc /proc "$CHROOT_DIR"/proc
   sudo mount -t sysfs /sys "$CHROOT_DIR"/sys
-  if file "$CHROOT_DIR/etc/resolv.conf" | grep -q 'symbolic link'; then
+  if [[ -L "$CHROOT_DIR/etc/resolv.conf" ]]; then
     sudo mount --bind /run "$CHROOT_DIR"/run
   else
     sudo mount --bind /etc/resolv.conf "$CHROOT_DIR"/etc/resolv.conf
