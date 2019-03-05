@@ -20,6 +20,8 @@
 #
 # Sahri Riza Umami
 #   v0.1  - 2019/02/18 19:24:27
+#   v0.2  - 2019/03/05 10:26:56
+#           Bugs fix, usb 3 and use vboxsvga.
 #
 # LICENSE ----------------------------------------------------------------------
 #
@@ -52,17 +54,14 @@
 
 # VARIABLES --------------------------------------------------------------------
 
+declare VBOXVMS VMDISK OSTYPE VMNAME SLIC_PATH CFG_PATH
+
 # Path to VBox VMs folder
 VBOXVMS="$HOME/VMs/VirtualBox VMs"
 # Guest operating systems presently known to VirtualBox.
 # Use command: VBoxManage list ostypes
-OSTYPE="Windows${2}_64"
-VM_NAME="$1"
-VM_DISK="${1,,}x64.vdi"
-# Path where you want to store the SLIC.bin file
-SLIC_PATH="$VBOXVMS/$VM_NAME/SLIC.bin"
+OSTYPE="WindowsX"
 CFG_PATH='VBoxInternal/Devices/pcbios/0/Config'
-SYS_SLIC="/sys/firmware/acpi/tables/SLIC"
 
 # FUNCTIONS --------------------------------------------------------------------
 
@@ -75,13 +74,13 @@ create_vm() {
   print_b "Keep VM definition in $VBOXVMS"
   VBoxManage setproperty machinefolder "$VBOXVMS"
 
-  print_b "Creating $VM_NAME"
-  VBoxManage createvm --name "$VM_NAME" --register
+  print_b "Creating $1"
+  VBoxManage createvm --name "$1" --register
 
   # Import BIOS, system, motherboard and chassis so the guest machine is similar
   # to the real hardware
   print_b 'Importing hardwware properties'
-  VSETED="VBoxManage setextradata $(VBoxManage showvminfo "$VM_NAME" | awk '/^UUID/{print $2}')"
+  VSETED="VBoxManage setextradata $(VBoxManage showvminfo "$1" | awk '/^UUID/{print $2}')"
 
   $VSETED $CFG_PATH/DmiBIOSVendor         "string:$(sudo dmidecode -s bios-vendor)"
   $VSETED $CFG_PATH/DmiBIOSVersion        "string:$(sudo dmidecode -s bios-version)"
@@ -110,15 +109,17 @@ create_vm() {
   $VSETED $CFG_PATH/DmiChassisVersion     "<EMPTY>"     # "Version" from "dmidecode -t3"
 
   # NOTE: VBox Manager failed to delete SLIC.bin when we delete its VM.
-  if [[ -e $SYS_SLIC ]]; then
-    sudo dd if="$SYS_SLIC" of="$SLIC_PATH"
+  if [[ -e /sys/firmware/acpi/tables/SLIC ]]; then
+    # Path where you want to store the SLIC.bin file
+    local SLIC_PATH="$VBOXVMS/$1/SLIC.bin"
+    sudo dd if="/sys/firmware/acpi/tables/SLIC" of="$SLIC_PATH"
     $VSETED VBoxInternal/Devices/acpi/0/Config/CustomTable "$SLIC_PATH"
   fi
 
   # Manage VM. See chapter 8 in VBox manual.
-  print_b "Changes the properties of $VM_NAME"
-  VBoxManage modifyvm "$VM_NAME" \
-  --ostype "$OSTYPE"  \
+  print_b "Changes the properties of $1"
+  VBoxManage modifyvm "$1" \
+  --ostype "$2"  \
   --memory 4096  \
   --pagefusion off \
   --vram 256 \
@@ -137,6 +138,7 @@ create_vm() {
   --cpuexecutioncap 100 \
   --rtcuseutc off \
   --monitorcount 1 \
+  --graphicscontroller vboxsvga \
   --accelerate3d on \
   --accelerate2dvideo on \
   --firmware bios \
@@ -154,28 +156,28 @@ create_vm() {
   --clipboard bidirectional \
   --draganddrop bidirectional \
   --usb on \
-  --usbehci on \
+  --usbxhci on \
   --snapshotfolder default \
   --usbcardreader off \
   --defaultfrontend default
 
   print_b 'Set shared folder'
-  VBoxManage sharedfolder add "$VM_NAME" \
+  VBoxManage sharedfolder add "$1" \
     --name "$USER" \
     --hostpath "$HOME" \
     --automount
 
   print_b 'Creating disk'
   sudo VBoxManage createhd \
-    --filename "$VBOXVMS/$VM_NAME/$VM_DISK" \
+    --filename "$VBOXVMS/$1/$3" \
     --size 17408 \
     --format VDI \
     --variant Standard
 
-  sudo chown "$USER:$USER" "$VBOXVMS/$VM_NAME/"*
+  sudo chown "$USER:$USER" "$VBOXVMS/$1/"*
 
   print_b 'Creating storage media'
-  VBoxManage storagectl "$VM_NAME" \
+  VBoxManage storagectl "$1" \
     --name SATA \
     --add sata \
     --controller IntelAhci \
@@ -183,16 +185,16 @@ create_vm() {
     --bootable on
 
   print_b 'Mounting disk to storage media'
-  VBoxManage storageattach "$VM_NAME" \
+  VBoxManage storageattach "$1" \
     --storagectl SATA \
     --port 1 \
     --device 0 \
     --type hdd \
-    --medium "$VBOXVMS/$VM_NAME/$VM_DISK" \
+    --medium "$VBOXVMS/$1/$3" \
     --nonrotational on
 
   print_b 'Mounting optical drive to storage media'
-  VBoxManage storageattach "$VM_NAME" \
+  VBoxManage storageattach "$1" \
     --storagectl SATA \
     --port 2 \
     --device 0 \
@@ -207,12 +209,15 @@ print_usage() {
   ${0##*/} is a helper script to create a VirtualBox Windows guest machine on
   a Linux host.
 
-  Usage: ${0##*/} NAME WINDOWS_VERSION ARCHITECTURE
+  Usage: ${0##*/} -n VMNAME -t WINDOWS_VERSION -a ARCHITECTURE
 
   OPTION:
-    -h, --help      print this text
+    -h      print this text
+    -n      guest operating system machine name
+    -t      operating system type ( 7 or 10)
+    -a      guest architecture (32 or 64)
 
-  NAME is guest machine name.
+  VMNAME is guest operating system machine name.
 
   WINDOWS_VERSION is Windows version. Only accept 7 and 10.
 
@@ -221,24 +226,16 @@ print_usage() {
   Example:
     - Create Windows 7 32 bit guest and set Windows as its name.
 
-      ${0##*/} Windows 7 32
+      ${0##*/} -n Windows -t 7 -a 32
 
     - Create Windows 10 64 bit guest and set Windows 10 LTSC as its name.
 
-      ${0##*/} 'Windows 10 LTSC' 10
+      ${0##*/} -n 'Windows 10 LTSC' -t 10
 "
   exit 0
 }
 
 # MAIN -------------------------------------------------------------------------
-
-[[ "$#" -lt 1 || "$#" -gt 3 ]] && print_usage
-
-# Check if VM with same name has been created.
-if [[ -d "${VBOXVMS}/${1}" ]]; then
-  print_b "VM already exists in ${VBOXVMS}/${1}."
-  exit
-fi
 
 # Check dependencies
 declare -a DEPS=(dmidecode virtualbox)
@@ -256,18 +253,41 @@ if [[ "${#DEPS[@]}" -gt 0 ]]; then
   exit 1
 fi
 
-case $2 in
-  7|10)
-    case $3 in
-      32)
-        OSTYPE="${OSTYPE/_64/}"
-        VM_DISK="${VM_DISK/x64/}"
+while getopts ":n:t:a:" o; do
+  case "${o}" in
+    n)
+      VMNAME="${OPTARG}"
+      # Check if VM with same name has been created.
+      if [[ -d "${VBOXVMS}/${VMNAME}" ]]; then
+        print_b "VM already exists in ${VBOXVMS}/${VMNAME}."
+        exit
+      fi
       ;;
-    esac
-  ;;
-  *)
-    print_usage
-  ;;
-esac
+    t)
+      if [[ ${OPTARG} -eq 7 || ${OPTARG} -eq 10 ]]; then
+        # Guest operating systems presently known to VirtualBox.
+        # Use command: VBoxManage list ostypes
+        OSTYPE="${OSTYPE/X/$OPTARG}"
+      else
+        print_b 'Only accept OS type 7 (Windows 7) or 10 (Windows 10)'
+        exit
+      fi
+      ;;
+    a)
+      if [[ $OPTARG -eq 32 ]]; then
+        OSTYPE="${OSTYPE}"
+      elif [[ $OPTARG -eq 64 ]]; then
+        OSTYPE="${OSTYPE}_64"
+      else
+        print_b 'Only accept 32 or 64 bit architecture'
+      fi
+      ;;
+    *)
+      print_usage
+      ;;
+  esac
+done
+shift $((OPTIND-1))
 
-create_vm
+VMDISK="${OSTYPE}-${VMNAME// /_}.vdi"
+create_vm "$VMNAME" "$OSTYPE" "${VMDISK,,}"
