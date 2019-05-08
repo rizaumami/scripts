@@ -127,6 +127,6 @@ case "$1" in
     get_wiki "SC$1"
   ;;
   -h|--help|*)
-    print_help
+    print_usage
   ;;
 esac
