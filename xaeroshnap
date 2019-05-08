@@ -54,6 +54,22 @@
 #
 # ------------------------------------------------------------------------------
 
+# Checking dependencies:
+declare -a DEPS=(wmctrl xdotool)
+for ((NUM=${#DEPS[@]},i=0; i<NUM;i++)); do
+  if command -v "${DEPS[i]}" &>/dev/null ; then
+    unset -v 'DEPS[i]'
+  fi
+done
+
+# Exit if dependency not found.
+if [[ "${#DEPS[@]}" -gt 0 ]]; then
+  printf '\e[31m!! %s\n\e[m'  'Package(s) not found'
+  printf '\e[33m:: %s\n\e[m' 'Install the proper distribution package for your system:'
+  printf '   - %s\n' "${DEPS[@]}"
+  exit 1
+fi
+
 # VARIABLES --------------------------------------------------------------------
 
 WID=$(xdotool getactivewindow)
@@ -169,21 +185,6 @@ print_usage() {
 }
 
 # MAIN -------------------------------------------------------------------------
-# Checking dependencies:
-declare -a DEPS=(wmctrl xdotool)
-for ((NUM=${#DEPS[@]},i=0; i<NUM;i++)); do
-  if command -v "${DEPS[i]}" &>/dev/null ; then
-    unset -v 'DEPS[i]'
-  fi
-done
-
-# Exit if dependency not found.
-if [[ "${#DEPS[@]}" -gt 0 ]]; then
-  printf '\e[31m!! %s\n\e[m'  'Package(s) not found'
-  printf '\e[33m:: %s\n\e[m' 'Install the proper distribution package for your system:'
-  printf '   - %s\n' "${DEPS[@]}"
-  exit 1
-fi
 
 # Limit script's argument to 1
 [[ "$#" -gt 1 ]] && print_usage
