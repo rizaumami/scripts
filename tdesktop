@@ -5,13 +5,12 @@
 # Tdesktop: A script to manage Telegram Desktop config folders.
 # When this script is written, Telegram Desktop doesn't have multi accounts
 # feature. But, fortunately, it has option to use different config folder.
-# This script is a helper to manage configuration folder for each accounts so
+# This script is a helper to manage configuration folders for each account so
 # we can have a pseudo multi accounts in Telegram Desktop.
 #
 # DEPENDENCY -------------------------------------------------------------------
 #
 # - telegram-desktop
-# - zenity
 #
 # CHANGELOG --------------------------------------------------------------------
 #
@@ -19,6 +18,8 @@
 #
 # v0.1  - 2019/02/17 10:45:42
 #         Initial script
+# v0.2  - 2020/01/01 16:51:09
+#	  Check for kdialog or yad
 #
 # LICENSE ----------------------------------------------------------------------
 #
@@ -99,23 +100,38 @@ print_usage() {
 
 # Check dependencies
 [[ -z $TDESKTOP ]] && print_q 'Telegram Desktop binary not found.' && exit 1
-[[ -z $(command -v zenity) ]] && print_q 'Zenity not found.' && exit 1
 
 cd "$CONFIGDIR" || exit 1
 
 # Create an array of Telegram Desktop config folders
 mapfile -t TGACCOUNT < <(find . -maxdepth 1 -type d -name "TelegramDesktop*" \
-  | sort | awk -F\/ '{print $2}')
+  | sort | awk -F'/' '{print $2}')
 
 # Run zenity based GUI if this script executed without argument(s)
 if [[ "$#" -eq 0 ]]; then
-  MENU=$(zenity \
-    --width=400 --height=400 \
-    --list --radiolist \
-    --title="Multi Account Telegram Desktop" \
-    --text="<b>Select Telegram account:</b>\n<i>Run</i> ${0##*/} -h<i> to display help text.</i>" \
-    --column='' --column='Telegram Config' $(printf " \'\' %s" ${TGACCOUNT[@]}))
-
+  WINTITLE="Multi Account Telegram Desktop"
+  if [[ -n $(command -v zenity) ]]; then
+    MENU=$(zenity \
+      --width=400 --height=400 \
+      --list --radiolist \
+      --title="$WINTITLE" \
+      --text="<b>Select Telegram account:</b><\n><i>Run</i> ${0##*/} -h <i>to display help text.</i>" \
+      --column='' --column='Telegram Config' $(printf " \'\' %s" ${TGACCOUNT[@]}))
+  elif [[ -n $(command -v kdialogs) ]]; then
+    MENU=$(kdialog \
+      --geometry 400x100 \
+      --title "<b>Select Telegram account:</b><\n><i>Run</i> <code>${0##*/} -h</code> <i>to display help text.</i>" \
+      --combobox "$WINTEXT" $(printf " %s" ${TGACCOUNT[@]}))
+  elif [[ -n $(command -v yad) ]]; then
+    MENU=$(yad \
+      --width=400 --height=400 \
+      --list --radiolist \
+      --title="$WINTITLE" \
+      --text="<b>Select Telegram account:</b>\r<i>Run</i> ${0##*/} -h <i>to display help text.</i>" \
+      --column='' --column='Telegram Config' $(printf " \'\' %s" ${TGACCOUNT[@]}))
+  else
+    print_usage
+  fi
   [[ -n $MENU ]] && run_tdesktop "$CONFIGDIR/$MENU"
 fi
 

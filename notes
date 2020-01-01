@@ -56,7 +56,7 @@ declare CURRENTNOTE MAXR NOTE STORAGE TXTED
 # Todays note
 CURRENTNOTE=$(printf '%(%F)T' '-1')
 # Text editor to be used.
-TXTED="$(command -v nano) -Dlm$"
+TXTED="$(command -v nano) -Dl$"
 # Path to notes storage.
 STORAGE="$HOME/Documents/Notes"
 
