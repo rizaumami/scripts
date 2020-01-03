@@ -21,6 +21,8 @@
 # CHANGELOG --------------------------------------------------------------------
 #
 # Sahri Riza Umami
+#   v0.4 - 2019/01/03 13:49:11
+#        - Fixing search for online wiki
 #   v0.3 - 2019/02/13 10:27:28
 #        - Accept number only code
 #        - Limit to one argument
@@ -65,7 +67,7 @@ REMOTEWIKI='https://raw.githubusercontent.com/wiki/koalaman/shellcheck'
 # To use a local wiki, clone:
 #   git clone https://github.com/koalaman/shellcheck.wiki.git
 # And write its PATH as LOCALWIKI
-LOCALWIKI="$HOME/Documents/Software/git/shellcheck.wiki"
+LOCALWIKI="/mnt/data/Software/Repositories/shellcheck.wiki"
 
 # FUNCTIONS --------------------------------------------------------------------
 
@@ -88,7 +90,7 @@ get_wiki() {
     mdp "$LOCALWIKI/${1^^}.md"
   else
     # Check shellceck's GitHub wiki
-    if [[ -n $(wget -q --spider "$REMOTEWIKI/${1^^}.md" 2>/dev/null) ]]; then
+    if [[ -n $(wget -S --spider "$REMOTEWIKI/${1^^}.md" 2>&1 | grep 'HTTP/1.1 200 OK') ]]; then
       wget -q "$REMOTEWIKI/${1^^}.md" -O - | mdp
     else
       printf '\e[33m%s\n\e[m' "
