@@ -22,6 +22,8 @@
 #   v0.1  - 2019/02/18 19:24:27
 #   v0.2  - 2019/03/05 10:26:56
 #           Bugs fix, usb 3 and use vboxsvga.
+#   v0.3  - 2020/01/03 01:23:17
+#           Acommodating changes in virtualbox v6
 #
 # LICENSE ----------------------------------------------------------------------
 #
@@ -60,7 +62,7 @@ declare VBOXVMS VMDISK OSTYPE VMNAME SLIC_PATH CFG_PATH
 VBOXVMS="$HOME/VMs/VirtualBox VMs"
 # Guest operating systems presently known to VirtualBox.
 # Use command: VBoxManage list ostypes
-OSTYPE="WindowsX"
+OSTYPE="WindowsX_64"
 CFG_PATH='VBoxInternal/Devices/pcbios/0/Config'
 
 # FUNCTIONS --------------------------------------------------------------------
@@ -121,30 +123,34 @@ create_vm() {
   VBoxManage modifyvm "$1" \
   --ostype "$2"  \
   --memory 4096  \
-  --pagefusion off \
   --vram 256 \
   --acpi on \
   --ioapic on \
+  --cpus 2 \
+  --cpuhotplug off \
+  --cpuexecutioncap 100 \
+  --pae on \
+  --longmode off \
   --hpet on \
   --hwvirtex on \
+  --apic on \
+  --x2apic on \
+  --paravirtprovider hyperv \
   --nestedpaging on \
   --largepages on \
   --vtxvpid on \
   --vtxux on \
-  --pae on \
-  --longmode off \
-  --cpus 2 \
-  --cpuhotplug off \
-  --cpuexecutioncap 100 \
-  --rtcuseutc off \
-  --monitorcount 1 \
-  --graphicscontroller vboxsvga \
+  --nested-hw-virt on \
   --accelerate3d on \
   --accelerate2dvideo on \
-  --firmware bios \
   --chipset piix3 \
   --boot1 disk \
   --boot2 dvd \
+  --rtcuseutc off \
+  --graphicscontroller vboxsvga \
+  --snapshotfolder default \
+  --firmware bios \
+  --defaultfrontend default \
   --nic1 nat \
   --nictype1 82540EM \
   --cableconnected1 on \
@@ -153,13 +159,13 @@ create_vm() {
   --keyboard usb \
   --audio pulse \
   --audiocontroller hda \
-  --clipboard bidirectional \
+  --audioout on \
+  --clipboard-mode bidirectional \
   --draganddrop bidirectional \
+  --monitorcount 1 \
   --usb on \
-  --usbxhci on \
-  --snapshotfolder default \
-  --usbcardreader off \
-  --defaultfrontend default
+  --usbehci on \
+  --usbcardreader off
 
   print_b 'Set shared folder'
   VBoxManage sharedfolder add "$1" \
@@ -168,11 +174,7 @@ create_vm() {
     --automount
 
   print_b 'Creating disk'
-  sudo VBoxManage createhd \
-    --filename "$VBOXVMS/$1/$3" \
-    --size 17408 \
-    --format VDI \
-    --variant Standard
+  sudo VBoxManage createmedium disk --filename "$VBOXVMS/$1/$3" --size 17408
 
   sudo chown "$USER:$USER" "$VBOXVMS/$1/"*
 
@@ -240,15 +242,15 @@ print_usage() {
 # Check dependencies
 declare -a DEPS=(dmidecode virtualbox)
 for ((NUM=${#DEPS[@]},i=0; i<NUM;i++)); do
-  if command -v "${DEPS[i]}" >/dev/null 2>&1 ; then
+  if command -v sudo "${DEPS[i]}" >/dev/null 2>&1 ; then
     unset -v 'DEPS[i]'
   fi
 done
 
 # Exit if dependency not found.
 if [[ "${#DEPS[@]}" -gt 0 ]]; then
-  print_q 'Package(s) not found'
-  print_q 'Install the proper distribution package for your system:'
+  print_b 'Package(s) not found'
+  print_b 'Install the proper distribution package for your system:'
   printf '   - %s\n' "${DEPS[@]}"
   exit 1
 fi
@@ -276,8 +278,6 @@ while getopts ":n:t:a:" o; do
     a)
       if [[ $OPTARG -eq 32 ]]; then
         OSTYPE="${OSTYPE}"
-      elif [[ $OPTARG -eq 64 ]]; then
-        OSTYPE="${OSTYPE}_64"
       else
         print_b 'Only accept 32 or 64 bit architecture'
       fi
