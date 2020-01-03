@@ -9,7 +9,6 @@
 #
 # DEPENDENCY -------------------------------------------------------------------
 #
-# - mdp
 # - nano
 #
 # CHANGELOG --------------------------------------------------------------------
@@ -19,6 +18,9 @@
 #         Initial script
 # v0.2  - 2019/02/23 01:09:32
 #         Only accept input number within array's items number
+# v0.3  - 2020/01/03 13:53:14
+#       - remove mdp as dependency
+#       - rearrange functions
 #
 # LICENSE ----------------------------------------------------------------------
 #
@@ -58,7 +60,7 @@ CURRENTNOTE=$(printf '%(%F)T' '-1')
 # Text editor to be used.
 TXTED="$(command -v nano) -Dl$"
 # Path to notes storage.
-STORAGE="$HOME/Documents/Notes"
+STORAGE="/mnt/data/Notes"
 
 # FUNCTIONS --------------------------------------------------------------------
 
@@ -80,6 +82,7 @@ print_usage() {
     f, find                 find string in notes filename
     ls, list                list notes
     mv, move, rn, rename    move or rename a note to different filename
+    n, new                  create new note
     rm, remove              remove or delete a note
     s, search               search string in notes
     v, view                 view a note
@@ -97,16 +100,6 @@ print_usage() {
 "
 }
 
-# mdp is a command-line based markdown presentation tool. Preferable to view
-# markdown formatted notes.
-view_note() {
-  if command -v mdp &>/dev/null; then
-    mdp "$1"
-  else
-    cat "$1"
-  fi
-}
-
 # MAIN -------------------------------------------------------------------------
 
 # Check if notes storage is exists.
@@ -116,29 +109,52 @@ cd "$STORAGE" || exit 1
 
 [[ $# -gt 3 ]] && print_usage
 
-if [[ "$#" -eq 0 ]]; then
-  # Note is differentiated by creation date. We will write to the same file if
-  # taking a note on a same day.
-  # Append a timestamp everytime we taking a note.
-  printf '\n%s\n' "## $(printf '%(%R:%S)T\n' '-1')" >> "$CURRENTNOTE"
-  $TXTED "$CURRENTNOTE"
-fi
-
 # Create an array for list of notes.
 mapfile -t NOTES < <(find . -type f | sort | awk -F[/] '{print $2}')
 
 MAXR=${#NOTES[*]}
 
+if [[ "$#" -eq 0 ]]; then
+  [[ $MAXR -gt 0 ]] && print_w 'Notes list:'
+  for i in "${!NOTES[@]}"; do
+    printf '   %s\n' "$((i+1)). ${NOTES[$i]}"
+  done
+  exit
+fi
+
+if (( $1 > MAXR )); then
+  print_w "Note #$2 is not found."
+  print_w "Use ${0##*/} ls to list existing notes and its index number."
+  exit
+fi
+
 if [[ "$#" -eq 1 ]]; then
   case $1 in
-    cp|copy|e|edit|ls|list|mv|move|rm|remove|rn|rename)
+    cp|copy|mv|move|rn|rename)
+      print_w "$1 need a SOURCE and a TARGET filename."
+    ;;
+    e|edit)
+      nano "${NOTES[$MAXR-1]}"
+    ;;
+    ls|list)
       [[ $MAXR -gt 0 ]] && print_w 'Notes list:'
       for i in "${!NOTES[@]}"; do
         printf '   %s\n' "$((i+1)). ${NOTES[$i]}"
       done
     ;;
+    n|new)
+      # Note is differentiated by creation date. We will write to the same file if
+      # taking a note on a same day.
+      # Append a timestamp everytime we taking a note.
+      printf '\n%s\n' "## $(printf '%(%R:%S)T\n' '-1')" >> "$CURRENTNOTE"
+      $TXTED "$CURRENTNOTE"
+    ;;
+    rm|remove)
+      print_w "$1: missing file operand"
+      print_w "Try ${0##*/} $1 NOTE_TO_BE_REMOVED"
+    ;;
     v|view)
-      view_note "$CURRENTNOTE"
+      nano -v "${NOTES[$MAXR-1]}"
     ;;
     *)
       print_usage
@@ -187,7 +203,7 @@ if [[ $# -eq 2 || $# -eq 3 ]]; then
       grep -in --color "$2" -- *
     ;;
     v|view)
-      view_note "${NOTES[$NOTE]}"
+      nano -v "${NOTES[$NOTE]}"
     ;;
     *)
       print_usage
