@@ -1,0 +1,125 @@
+#!/usr/bin/env bash
+
+# UDEV rules for setting backlight PWM frequency on Intel HD Graphics
+# http://devbraindom.blogspot.com/2013/03/eliminate-led-screen-flicker-with-intel.html
+
+# Dependencies: 
+# - intel-gpu-tools
+
+# Sahri Riza Umami
+#   v0.1 - 2020-05-05 19:57:11
+#        - Initial release
+#
+# ------------------------------------------------------------------------------
+# License:
+#            DO WHAT THE FUCK YOU WANT TO PUBLIC LICENSE
+#                    Version 2, December 2004
+#
+# Copyright (C) 2004 Sam Hocevar <sam@hocevar.net>
+#
+# Everyone is permitted to copy and distribute verbatim or modified
+# copies of this license document, and changing it is allowed as long
+# as the name is changed.
+#
+#            DO WHAT THE FUCK YOU WANT TO PUBLIC LICENSE
+#   TERMS AND CONDITIONS FOR COPYING, DISTRIBUTION AND MODIFICATION
+#
+#  0. You just DO WHAT THE FUCK YOU WANT TO.
+# ------------------------------------------------------------------------------
+
+# VARIABLES --------------------------------------------------------------------
+
+SCRIPT='/usr/bin/intelpwm'
+
+udev_rules='KERNEL!="intel_backlight", SUBSYSTEM!="backlight", ACTION!="change", GOTO="backlight_pwm_rules_end"
+
+RUN="/usr/bin/intelpwm"
+
+LABEL="backlight_pwm_rules_end"
+'
+
+intelpwm_script='#!/usr/bin/env bash
+
+PERIOD=65C
+RAWDATA="$(intel_reg read 0xc8254)"
+CYCLE="${RAWDATA:56:4}"
+
+intel_reg write "0xc8254" "0x${PERIOD}${CYCLE}"
+'
+
+# FUNCTIONS --------------------------------------------------------------------
+
+reload_udev() {
+	sudo udevadm control --reload-rules
+}
+
+install_intelpwm() {
+	echo "$udev_rules" | sudo tee -a /usr/lib/udev/rules.d/99-intelpwm.rules > /dev/null
+	sudo chmod 644 /usr/lib/udev/rules.d/99-intelpwm.rules
+	echo "$intelpwm_script" | sudo tee -a $SCRIPT > /dev/null
+	sudo chmod 744 $SCRIPT
+	reload_udev
+	echo "${0##*/} has been installed."
+}
+
+remove_intelpwm() {
+	sudo rm /usr/lib/udev/rules.d/99-intelpwm.rules $SCRIPT
+	reload_udev
+	echo "${0##*/} has been removed."
+}
+
+print_usage() {
+  printf '%s\n' "
+  ${0##*/} is UDEV rules for setting backlight PWM frequency on
+  Intel HD Graphics.
+  
+  Usage: ${0##*/} OPTION
+
+  OPTION:
+    -h, --help       show this message and exit
+    c, check         check values from intel_reg and $SCRIPT
+    e, edit          edit $SCRIPT
+    i, install       install udev rules
+    rm, remove       remove udev rules
+    reload           reload udev
+"
+  exit
+}
+
+# MAIN -------------------------------------------------------------------------
+
+[[ "$#" -ne 1 ]] && print_usage
+
+# Checking dependenciy
+if [[ -z $(command -v intel_reg) ]]; then
+  echo 'intel-gpu-tools not found!'
+  exit
+fi
+
+case "$1" in
+ 	c|check)
+ 		if [[ -e $SCRIPT ]]; then 
+ 			echo "PERIOD value set in script: $(awk -F= '/PERIOD/ {print $2}' $SCRIPT)"
+ 			echo $(sudo intel_reg read 0xc8254) | awk '{sub(/^/, "")};1'
+ 			echo $(sudo intel_reg read 0xc6204) | awk '{sub(/^/, "")};1'
+ 		else
+ 			echo "${0##*/} is not installed."
+ 		fi
+ 	;;
+ 	e|edit)
+ 		sudo nano $SCRIPT
+ 	;;
+	i|install) 
+		install_intelpwm
+	;;
+	rm|remove)
+		remove_intelpwm
+	;;
+	reload)
+		reload_udev
+	;;
+	-h|--help|*)
+		print_usage
+	;;
+esac
+
