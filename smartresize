@@ -1,0 +1,94 @@
+#!/usr/bin/env bash
+
+# Resize image smartly.
+#
+# Dependencies:
+#	- imagemagick
+# Sahri Riza Umami
+#   v0.1 - 2020-05-09 13:46:51
+#        - Initial release
+#
+# Source: https://www.smashingmagazine.com/2015/06/efficient-image-resizing-with-imagemagick/
+#
+# ------------------------------------------------------------------------------
+# License:
+#            DO WHAT THE FUCK YOU WANT TO PUBLIC LICENSE
+#                    Version 2, December 2004
+#
+# Copyright (C) 2004 Sam Hocevar <sam@hocevar.net>
+#
+# Everyone is permitted to copy and distribute verbatim or modified
+# copies of this license document, and changing it is allowed as long
+# as the name is changed.
+#
+#            DO WHAT THE FUCK YOU WANT TO PUBLIC LICENSE
+#   TERMS AND CONDITIONS FOR COPYING, DISTRIBUTION AND MODIFICATION
+#
+#  0. You just DO WHAT THE FUCK YOU WANT TO.
+# ------------------------------------------------------------------------------
+
+# VARIABLES --------------------------------------------------------------------
+
+# Image width.
+THUMBNAIL='1366'
+OUTPUTFOLDER='resized'
+
+# FUNCTIONS --------------------------------------------------------------------
+
+smartresize() {
+mogrify -path "$2" \
+	-filter Triangle \
+	-define filter:support=2 \
+	-thumbnail "$THUMBNAIL" \
+	-unsharp 0.25x0.08+8.3+0.045 \
+	-dither None \
+	-posterize 136 -quality 82 \
+	-define jpeg:fancy-upsampling=off \
+	-define png:compression-filter=5 \
+	-define png:compression-level=9 \
+	-define png:compression-strategy=1 \
+	-define png:exclude-chunk=all \
+	-interlace none \
+	-colorspace sRGB "$1"
+}
+
+print_usage() {
+  printf '%s\n' "
+  ${0##*/} is a script to efficiently resize jpg and png image(s)
+  using ImageMagick.
+
+
+  Usage:
+    Run this script in the same directory as image(s) you want to
+    resize.
+
+    ${0##*/} OPTION
+
+  OPTION:
+    -h, --help       show this message and exit
+"
+  exit
+}
+
+# MAIN -------------------------------------------------------------------------
+
+[[ "$#" -ge 1 ]] && print_usage
+
+# Checking dependenciy
+if [[ -z $(command -v mogrify) ]]; then
+  echo "Mogrify not found!
+This script utilize mogrify to resize image.
+On Debian based distro it's distributed in imagemagick.
+Do sudo apt install imagemagick to install."
+  exit
+fi
+
+[[ -d "./$OUTPUTFOLDER" ]] || mkdir "$OUTPUTFOLDER"
+
+while read -r img; do
+	echo ":: Resizing $img"
+	smartresize "$img" "$OUTPUTFOLDER"
+done < <(find . -type f \( -name "*.png" -o -name "*.jpg" -o -name "*.jpeg" \))
+
+echo ":: Done. Resized image(s) can be found in ./$OUTPUTFOLDER."
+

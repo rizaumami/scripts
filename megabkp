@@ -1,0 +1,82 @@
+#!/usr/bin/env bash
+
+# Compress files(s) to 7zip archive and encrypt it. Used for sensitive
+# documents mean to be synced to cloud storage service.
+#
+# Dependencies:
+# - pass
+# - 7zip
+#
+# Sahri Riza Umami
+#   v0.1 - 2020/05/12 10:31:36
+#        - Initial release
+#
+# ------------------------------------------------------------------------------
+# License:
+#            DO WHAT THE FUCK YOU WANT TO PUBLIC LICENSE
+#                    Version 2, December 2004
+#
+# Copyright (C) 2004 Sam Hocevar <sam@hocevar.net>
+#
+# Everyone is permitted to copy and distribute verbatim or modified
+# copies of this license document, and changing it is allowed as long
+# as the name is changed.
+#
+#            DO WHAT THE FUCK YOU WANT TO PUBLIC LICENSE
+#   TERMS AND CONDITIONS FOR COPYING, DISTRIBUTION AND MODIFICATION
+#
+#  0. You just DO WHAT THE FUCK YOU WANT TO.
+# ------------------------------------------------------------------------------
+
+
+# VARIABLES --------------------------------------------------------------------
+
+# Output archived files.
+BKPDIR="$HOME/MEGAsync"
+# Password for encrypted archive. Change accordingly.
+PASS='megasync'
+# Pass won't works directly in script because it's output ended with newline.
+# Bash array with -t remove the newline.
+mapfile -t PASSWORD < <(pass $PASS)
+SEVENZIP="7z a -mhe=on -p${PASSWORD} -t7z -m0=lzma -mx=9 -mfb=64 -md=32m -ms=on"
+
+# FUNCTIONS --------------------------------------------------------------------
+
+# Checking dependencies
+checking_deps() {
+	declare -a DEPS=(7z pass)
+	for ((NUM=${#DEPS[@]},i=0; i<NUM;i++)); do
+	  if command -v "${DEPS[i]}" &>/dev/null ; then
+	    unset -v 'DEPS[i]'
+	  fi
+	done
+
+	# Exit if dependencies not found.
+	if [[ "${#DEPS[@]}" -gt 0 ]]; then
+	  printf '\e[31m!! %s\n\e[m'  'Package(s) not found'
+	  printf '\e[33m:: %s\n\e[m' 'Install the proper distribution package for your system:'
+	  printf '   - %s\n' "${DEPS[@]}"
+	  exit 1
+	fi
+}
+
+print_usage() {
+  printf '%s\n' "
+  ${0##*/} will compress files(s) to 7zip archive and encrypt it.
+  Used for sensitive documents mean to be synced to cloud storage service.
+
+  Usage: ${0##*/}
+"
+  exit
+}
+
+# MAIN -------------------------------------------------------------------------
+
+[[ "$#" -ge 1 ]] && print_usage
+
+checking_deps
+
+$SEVENZIP "$BKPDIR/$(date "+%F")-gnupg_ssh_pass.7z" "$HOME"/{.gnupg,.ssh,.password-store}
+$SEVENZIP "$BKPDIR/$(date "+%F")-bizz.7z" /mnt/DataHDD/Bizz
+$SEVENZIP "$BKPDIR/$(date "+%F")-TP20192020-II.7z" '/mnt/DataHDD/Tugas SD/Administrasi Kelas/2019-2020/Semester 2/Administrasi Guru Kelas IV 2019-2020.2.ods'
+
