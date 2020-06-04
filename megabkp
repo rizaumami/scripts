@@ -10,6 +10,8 @@
 # Sahri Riza Umami
 #   v0.1 - 2020/05/12 10:31:36
 #        - Initial release
+#		v0.2 - 2020/06/04 17:09:42
+#				 - Files to be backed up saved as an array then iterated by 7zip
 #
 # ------------------------------------------------------------------------------
 # License:
@@ -31,14 +33,25 @@
 
 # VARIABLES --------------------------------------------------------------------
 
+# Backup filename.
+BKPNAME="$(date "+%F")-megabkp"
 # Output archived files.
 BKPDIR="$HOME/MEGAsync"
+# Files to be backed up.
+declare -a BKPFILES=( \
+	"$HOME/.gnupg" \
+	"$HOME/.ssh" \
+	"$HOME/.password-store" \
+	/mnt/DataHDD/Bizz \
+	/mnt/DataHDD/Notes \
+	'/mnt/DataHDD/Tugas SD/Administrasi Kelas/2019-2020/Semester 2/Administrasi Guru Kelas IV 2019-2020.2.ods' \
+	'/mnt/DataHDD/Tugas SD/Administrasi Kelas/2019-2020/Semester 2/raw_grades.ods' \
+)
 # Password for encrypted archive. Change accordingly.
 PASS='megasync'
 # Pass won't works directly in script because it's output ended with newline.
 # Bash array with -t remove the newline.
 mapfile -t PASSWORD < <(pass $PASS)
-SEVENZIP="7z a -mhe=on -p${PASSWORD} -t7z -m0=lzma -mx=9 -mfb=64 -md=32m -ms=on"
 
 # FUNCTIONS --------------------------------------------------------------------
 
@@ -72,11 +85,12 @@ print_usage() {
 
 # MAIN -------------------------------------------------------------------------
 
+# If more than one argument passed, print script's usage help.
 [[ "$#" -ge 1 ]] && print_usage
 
 checking_deps
 
-$SEVENZIP "$BKPDIR/$(date "+%F")-gnupg_ssh_pass.7z" "$HOME"/{.gnupg,.ssh,.password-store}
-$SEVENZIP "$BKPDIR/$(date "+%F")-bizz.7z" /mnt/DataHDD/Bizz
-$SEVENZIP "$BKPDIR/$(date "+%F")-TP20192020-II.7z" '/mnt/DataHDD/Tugas SD/Administrasi Kelas/2019-2020/Semester 2/Administrasi Guru Kelas IV 2019-2020.2.ods'
-
+# Loop over array of the files to be backed up then archive it.
+for ((NUM=${#BKPFILES[@]},i=0; i<NUM;i++)); do
+	7z a -mhe=on -p"${PASSWORD}" -t7z -m0=lzma -mx=9 -mfb=64 -md=32m -ms=on "$BKPDIR/$BKPNAME.7z" "${BKPFILES[i]}"
+done
