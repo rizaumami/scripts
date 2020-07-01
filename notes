@@ -21,6 +21,8 @@
 # v0.3  - 2020/01/03 13:53:14
 #       - remove mdp as dependency
 #       - rearrange functions
+# v0.4  - 2020/01/03 13:53:14
+#       - softwrap in view mode
 #
 # LICENSE ----------------------------------------------------------------------
 #
@@ -154,7 +156,7 @@ if [[ "$#" -eq 1 ]]; then
       print_w "Try ${0##*/} $1 NOTE_TO_BE_REMOVED"
     ;;
     v|view)
-      nano -v "${NOTES[$MAXR-1]}"
+      nano --softwrap -v "${NOTES[$MAXR-1]}"
     ;;
     *)
       print_usage
@@ -203,7 +205,7 @@ if [[ $# -eq 2 || $# -eq 3 ]]; then
       grep -in --color "$2" -- *
     ;;
     v|view)
-      nano -v "${NOTES[$NOTE]}"
+      nano --softwrap -v "${NOTES[$NOTE]}"
     ;;
     *)
       print_usage
