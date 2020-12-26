@@ -1,0 +1,165 @@
+#!/usr/bin/env bash
+
+# Enable systemwide custom DNS by using systemd-resolved service.
+#
+# Dependencies:
+# - systemd
+#
+# Sahri Riza Umami
+#   v0.1 - 2020-12-26 13:19:37 
+#        - Initial release
+#
+# ------------------------------------------------------------------------------
+# License:
+#            DO WHAT THE FUCK YOU WANT TO PUBLIC LICENSE
+#                    Version 2, December 2004
+#
+# Copyright (C) 2004 Sam Hocevar <sam@hocevar.net>
+#
+# Everyone is permitted to copy and distribute verbatim or modified
+# copies of this license document, and changing it is allowed as long
+# as the name is changed.
+#
+#            DO WHAT THE FUCK YOU WANT TO PUBLIC LICENSE
+#   TERMS AND CONDITIONS FOR COPYING, DISTRIBUTION AND MODIFICATION
+#
+#  0. You just DO WHAT THE FUCK YOU WANT TO.
+# ------------------------------------------------------------------------------
+
+# VARIABLES --------------------------------------------------------------------
+
+# FUNCTIONS --------------------------------------------------------------------
+
+# Print message in brown.
+print_w() {
+  printf '\e[33m:: %s\n\e[m' "$@"
+}
+
+backup_cfg() {
+  if [[ ! -f /etc/systemd/resolved.conf-orig ]]; then
+    print_w "Backing up /etc/systemd/resolved.conf."
+    sudo mv /etc/systemd/resolved.conf{,-orig}
+  else
+    print_w "Backup exist at /etc/systemd/resolved.conf-orig."
+  fi
+}
+
+print_usage() {
+  printf '%s\n' "
+  ${0##*/} is script to enable systemwide custom DNS by using systemd-resolved service.
+
+  Usage: ${0##*/} OPTION
+
+  OPTION:
+    -h, help        - print this text    
+    on              - enable custom DNS (default to CloudFlare DNS)
+    cf, cloudflare  - enable CloudFlare DNS (1.1.1.1, 1.0.0.1)
+    gg, google      - enable Google DNS (8.8.8.8, 8.8.4.4)
+    q9, quad9       - enable Quad9 DNS (9.9.9.9)
+    off             - disable custom DNS
+
+  Example:
+    - ${0##*/} on
+    - ${0##*/} off
+"
+  exit
+}
+
+restart_services() {
+  print_w "Restarting services..."
+  sudo systemctl restart systemd-resolved.service
+  sudo systemctl restart NetworkManager
+}
+
+enable_services() {
+  print_w "Restarting services..."
+  sudo systemctl enable systemd-resolved.service
+  restart_services
+}
+
+write_config() {
+  print_w "Applying $2 DNS..."
+  printf '%s\n' "
+[Resolve]
+DNS=$1
+FallbackDNS=$1
+Domains=~.
+DNSSEC=yes
+DNSOverTLS=yes
+" | sudo tee /etc/systemd/resolved.conf
+}
+
+# MAIN -------------------------------------------------------------------------
+
+if [[ -z $(command -v "systemctl") ]]; then
+  print_w "systemctl not found. Perhaps this is not a systemd system?"
+  exit
+fi
+
+if [[ "$#" -eq 1 ]]; then
+  case $1 in
+    on|cf|cloudflare)
+      backup_cfg
+      write_config "1.1.1.1 1.0.0.1 2606:4700:4700::1111 2606:4700:4700::1001" "CloudFlare"
+      enable_services
+    ;;
+    gg|google)
+      backup_cfg
+      write_config "8.8.8.8 8.8.4.4 2001:4860:4860::8888 2001:4860:4860::8844" "Google"
+      enable_services
+    ;;
+    q9|quad9)
+      backup_cfg
+      write_config "9.9.9.9 2620:fe::fe" "Quad9"
+      enable_services
+    ;;
+	  off)
+      if [[ -f /etc/systemd/resolved.conf-orig ]]; then
+        print_w "Backup exist at /etc/systemd/resolved.conf-orig."
+        print_w "Restoring it back to /etc/systemd/resolved.conf."
+        sudo mv /etc/systemd/resolved.conf{-orig,}
+      else        
+        print_w "Backup (/etc/systemd/resolved.conf-orig) is not found."
+        print_w "Creating new /etc/systemd/resolved.conf skeleton."
+        printf '%s\n' "
+#  This file is part of systemd.
+#
+#  systemd is free software; you can redistribute it and/or modify it
+#  under the terms of the GNU Lesser General Public License as published by
+#  the Free Software Foundation; either version 2.1 of the License, or
+#  (at your option) any later version.
+#
+# Entries in this file show the compile time defaults.
+# You can change settings by editing this file.
+# Defaults can be restored by simply deleting this file.
+#
+# See resolved.conf(5) for details
+
+[Resolve]
+# Some examples of DNS servers which may be used for DNS= and FallbackDNS=:
+# Cloudflare: 1.1.1.1 1.0.0.1 2606:4700:4700::1111 2606:4700:4700::1001
+# Google:     8.8.8.8 8.8.4.4 2001:4860:4860::8888 2001:4860:4860::8844
+# Quad9:      9.9.9.9 2620:fe::fe
+#DNS=
+#FallbackDNS=
+#Domains=
+#DNSSEC=no
+#DNSOverTLS=no
+#Cache=yes
+#MulticastDNS=yes
+#LLMNR=yes
+#DNSStubListener=yes
+#DNSStubListenerExtra=
+#ReadEtcHosts=yes
+#ResolveUnicastSingleLabel=no
+" | sudo tee /etc/systemd/resolved.conf
+      fi
+      sudo systemctl disable systemd-resolved.service
+      restart_services
+    ;;
+    -h|help|*)
+      print_usage
+    ;;
+  esac
+fi
+
