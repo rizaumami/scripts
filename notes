@@ -21,8 +21,8 @@
 # v0.3  - 2020/01/03 13:53:14
 #       - remove mdp as dependency
 #       - rearrange functions
-# v0.4  - 2020/01/03 13:53:14
-#       - softwrap in view mode
+# v0.4  - 2020/12/26 23:37:27 
+#       - Major rewrite
 #
 # LICENSE ----------------------------------------------------------------------
 #
@@ -55,16 +55,33 @@
 
 # VARIABLES --------------------------------------------------------------------
 
-declare CURRENTNOTE MAXR NOTE STORAGE TXTED
-
-# Todays note
-CURRENTNOTE=$(printf '%(%F)T' '-1')
-# Text editor to be used.
-TXTED="$(command -v nano) -Dl$"
 # Path to notes storage.
-STORAGE="/mnt/data/Notes"
+STORAGE="/mnt/datahdd/Notes"
+# Todays note
+CURRENTNOTE="$STORAGE/$(printf '%(%Y/%m/%F)T')"
 
 # FUNCTIONS --------------------------------------------------------------------
+
+get_path() {
+  if [[ $1 =~ ^[0-9]{8}$ ]]; then
+    printf "%s" "$STORAGE/${1:0:4}/${1:4:2}/${1:0:4}-${1:4:2}-${1:6:2}"
+  else
+    printf "%s" "$STORAGE/${1:0:4}/${1:5:2}/$1"
+  fi
+}
+
+not_exist() {
+  print_w "Cannot access ${1##*/}: No such file or directory."
+  print_w "Use ${0##*/} ls to list existing notes."
+}
+
+open_note() {      
+  if [[ -f "$2" ]]; then
+    nano "$1" "$2"
+  else
+    not_exist "$2"
+  fi
+}
 
 # Print message in brown.
 print_w() {
@@ -75,140 +92,177 @@ print_usage() {
   printf '%s\n' "
   ${0##*/} is a simple note taking script.
 
-  Usage: ${0##*/} OPTION INDEX NAME
+  Usage: ${0##*/} OPTION
 
   OPTION:
-    -h, --help              print this text
-    cp, copy                copy a note to different filename
-    e, edit                 edit a note
-    f, find                 find string in notes filename
-    ls, list                list notes
-    mv, move, rn, rename    move or rename a note to different filename
-    n, new                  create new note
-    rm, remove              remove or delete a note
-    s, search               search string in notes
-    v, view                 view a note
+    -h, --help              Print this text
+    cp, copy                Copy a note to different filename
+    e, edit                 Edit a note
+    f, find                 Find string in notes filename
+    ls, list                Print notes in tree structure
+    mv, move, rn, rename    Move or rename a note to different filename
+    n, new                  Create a new note or add into todays note if exist
+    rm, remove              Remove or delete a note
+    s, search               Search string in notes. Case insensitive
+    v, version              Print script's version
+    migrate                 Migrate v0.1 - v0.3 note structure
 
-  INDEX is a note's index number.
-
-  Used in copy and move, NAME is the new note's filename.
-
-  To copy, edit, move or delete a note, we need to get its index number first.
-
+  * To copy, edit, move or delete a note, we need to get its filename/date first.
+  * Use ls to get note's filename
+  * Note's date can be written in form of YYYY-MM-DD or YYYYMMDD.
+  * E.g. 2020-11-12 or 20201112.
+  
   Example:
-    ${0##*/} ls               - list existing notes and its index number
-    ${0##*/} rm 2             - delete note number 2
-    ${0##*/} mv 2 'New File'  - move or rename note number 2 to 'New File'
+    ${0##*/} e 20201112               - edit note dated 12 November 2020
+    ${0##*/} f 2019                   - find '2019' string in note's filename
+    ${0##*/} ls 2019                  - list notes from year '2019'
+    ${0##*/} mv 20200511 /tmp/useless - move or rename note dated 11 May 2020 to '/tmp/useless'
+    ${0##*/} rm 2020-11-12            - edit note dated 12 November 2020
+    ${0##*/} s duit                   - search for 'duit' string in notes
 "
 }
 
 # MAIN -------------------------------------------------------------------------
+
+if [[ -z $(command -v "nano") ]]; then
+  print_w "nano not found."
+  print_w "Install the proper nano distribution package for your system."
+  exit
+fi
 
 # Check if notes storage is exists.
 [[ -d $STORAGE ]] || mkdir -p "$STORAGE"
 # Move to notes storage. Exit if the path doesn't exists.
 cd "$STORAGE" || exit 1
 
-[[ $# -gt 3 ]] && print_usage
-
-# Create an array for list of notes.
-mapfile -t NOTES < <(find . -type f | sort | awk -F[/] '{print $2}')
-
-MAXR=${#NOTES[*]}
-
-if [[ "$#" -eq 0 ]]; then
-  [[ $MAXR -gt 0 ]] && print_w 'Notes list:'
-  for i in "${!NOTES[@]}"; do
-    printf '   %s\n' "$((i+1)). ${NOTES[$i]}"
-  done
-  exit
-fi
-
-if (( $1 > MAXR )); then
-  print_w "Note #$2 is not found."
-  print_w "Use ${0##*/} ls to list existing notes and its index number."
-  exit
-fi
+[[ $# -eq 0 || $# -gt 3 ]] && print_usage
 
 if [[ "$#" -eq 1 ]]; then
   case $1 in
     cp|copy|mv|move|rn|rename)
       print_w "$1 need a SOURCE and a TARGET filename."
+      print_w "Example: $1 20201112 /tmp/useless"
     ;;
     e|edit)
-      nano "${NOTES[$MAXR-1]}"
+      if [[ -f "$CURRENTNOTE" ]]; then
+        open_note '-S' "$CURRENTNOTE"
+      else
+        not_exist "$CURRENTNOTE"
+      fi
     ;;
     ls|list)
-      [[ $MAXR -gt 0 ]] && print_w 'Notes list:'
-      for i in "${!NOTES[@]}"; do
-        printf '   %s\n' "$((i+1)). ${NOTES[$i]}"
-      done
+      tree "$STORAGE"
+    ;;
+    migrate)
+      print_w "Migrating old notes..."
+      while read -r OLDNOTE; do
+        mkdir -p "${OLDNOTE:2:4}/${OLDNOTE:7:2}"
+        mv -v "${OLDNOTE}" "${OLDNOTE:2:4}/${OLDNOTE:7:2}"
+      done < <(find . -maxdepth 1 -type f)
+      print_w "Done."
     ;;
     n|new)
-      # Note is differentiated by creation date. We will write to the same file if
-      # taking a note on a same day.
+      mkdir -p "$STORAGE/$(date '+%Y/%m')"
+      # Note is differentiated by creation date. We will write to the same file 
+      # if taking a note on a same day.
       # Append a timestamp everytime we taking a note.
       printf '\n%s\n' "## $(printf '%(%R:%S)T\n' '-1')" >> "$CURRENTNOTE"
-      $TXTED "$CURRENTNOTE"
+      open_note "-Dl" "$CURRENTNOTE"
     ;;
     rm|remove)
       print_w "$1: missing file operand"
-      print_w "Try ${0##*/} $1 NOTE_TO_BE_REMOVED"
+      print_w "Try: ${0##*/} $1 NOTE_TO_BE_REMOVED"
     ;;
-    v|view)
-      nano --softwrap -v "${NOTES[$MAXR-1]}"
+    v)
+      if [[ -f "$CURRENTNOTE" ]]; then
+        open_note '-Sv' "$CURRENTNOTE"
+      else
+        not_exist "$CURRENTNOTE"
+      fi
     ;;
-    *)
+    version)
+      print_w "${0##*/} v0.4 - 2020/12/26 23:37:27"
+    ;;
+    [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9])
+      # Using note's filename (eg. 2020-11-12) to view the note
+      open_note '-Sv' "$(get_path "$1")"
+    ;;
+    [0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9])
+      # Using shorter date's note (eg. 20201112) to view the note
+      open_note '-Sv' "$(get_path "$1")"
+    ;;
+    -h|--help)
       print_usage
     ;;
   esac
 fi
 
 if [[ $# -eq 2 || $# -eq 3 ]]; then
-  # Bash array index number start at 0.
-  # If user input is higher than 0, substracted by 1.
-  # If user input is lower than 1, make it higher than number of items number
-  # in the array so the respective command would fail
-  ((NOTE=$2>0?$(($2-1)):$((MAXR+1))))
   case $1 in
     cp|copy)
-      cp -v "${NOTES[$NOTE]}" "$3"
+      NOTETOCOPY="$(get_path "$2")"
+      
+      if [[ -f "$NOTETOCOPY" ]]; then
+        cp -v "$NOTETOCOPY" "$3"
+      else
+        not_exist "$2"
+      fi
     ;;
     e|edit)
-      $TXTED "${NOTES[$NOTE]}"
+      if [[ $2 =~ ^[0-9]{8}$ ]]; then
+        open_note "-Dl" "$(get_path "$2")"
+      else
+        open_note "-Dl" "$(get_path "$2")"
+      fi
     ;;
     f|find)
       mapfile -t SEARCHRESULT < <(find . -type f  -name "*$2*" | sort \
-        | awk -F[/] '{print $2}')
+        | awk -F[/] '{print $4}')
 
       print_w 'Search title result:'
       for i in "${!SEARCHRESULT[@]}"; do
         printf '   %s\n' "$((i+1)). ${SEARCHRESULT[$i]}"
       done
     ;;
+    ls|list)
+      if [[ -d "$STORAGE/$2" ]]; then
+        tree "$STORAGE/$2"
+      else
+        not_exist "$STORAGE/$2"
+      fi
+    ;;
     mv|move|rn|rename)
-      mv -v "${NOTES[$NOTE]}" "$3"
+      NOTETOMOVE="$(get_path "$2")"
+      
+      if [[ -f "$NOTETOMOVE" ]]; then
+        mv -v "$NOTETOMOVE" "$3"
+      else
+        not_exist "$2"
+      fi
     ;;
     rm|remove)
-      print_w "Are you sure want to delete ${NOTES[$NOTE]}? (yY[nN])"
-      read -rp ' ' confirmdelete
+      NOTETOREM="$(get_path "$2")"
+      
+      if [[ -f "$NOTETOREM" ]]; then
+        print_w "Are you sure want to delete $NOTETOREM? (yY[nN])"
+        read -rp ' ' confirmdelete
 
-      case "$confirmdelete" in
-        y|Y)
-          rm "${NOTES[$NOTE]}"
-          print_w "${NOTES[$NOTE]} has been deleted."
-        ;;
-      esac
+        case "$confirmdelete" in
+          y|Y)
+            rm "$NOTETOREM" || exit
+            print_w "$NOTETOREM has been deleted."
+          ;;
+        esac
+      else
+        not_exist "$2"
+      fi
     ;;
     s|search)
       print_w 'Search result:'
-      grep -in --color "$2" -- *
+      grep -rin --color "$2" -- *
     ;;
     v|view)
-      nano --softwrap -v "${NOTES[$NOTE]}"
-    ;;
-    *)
-      print_usage
+      open_note '-Sv' "$(get_path "$2")"
     ;;
   esac
 fi
