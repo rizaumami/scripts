@@ -6,8 +6,11 @@
 # - systemd
 #
 # Sahri Riza Umami
-#   v0.1 - 2020-12-26 13:19:37 
+#   v0.1 - 2020-12-26 13:19:37
 #        - Initial release
+#   v0.2 - 2020/12/28 14:39:57
+#        - Add status option, and symlinking stub-resolv.conf
+#        - More standard compliance options/arguments
 #
 # ------------------------------------------------------------------------------
 # License:
@@ -51,12 +54,13 @@ print_usage() {
   Usage: ${0##*/} OPTION
 
   OPTION:
-    -h, help        - print this text    
-    on              - enable custom DNS (default to CloudFlare DNS)
-    cf, cloudflare  - enable CloudFlare DNS (1.1.1.1, 1.0.0.1)
-    gg, google      - enable Google DNS (8.8.8.8, 8.8.4.4)
-    q9, quad9       - enable Quad9 DNS (9.9.9.9)
-    off             - disable custom DNS
+    -h   --help        Print this text
+    -on                Enable custom DNS (default to CloudFlare DNS)
+    -cf  --cloudflare  Enable CloudFlare DNS (1.1.1.1, 1.0.0.1)
+    -gg  --google      Enable Google DNS (8.8.8.8, 8.8.4.4)
+    -q9  --quad9       Enable Quad9 DNS (9.9.9.9)
+    -s   --status      Show link and server status
+    -off               Disable custom DNS
 
   Example:
     - ${0##*/} on
@@ -98,27 +102,31 @@ fi
 
 if [[ "$#" -eq 1 ]]; then
   case $1 in
-    on|cf|cloudflare)
+    -on|-cf|--cloudflare)
       backup_cfg
       write_config "1.1.1.1 1.0.0.1 2606:4700:4700::1111 2606:4700:4700::1001" "CloudFlare"
+      sudo ln -sf /run/systemd/resolve/stub-resolv.conf /etc/resolv.conf
       enable_services
     ;;
-    gg|google)
+    -gg|--google)
       backup_cfg
       write_config "8.8.8.8 8.8.4.4 2001:4860:4860::8888 2001:4860:4860::8844" "Google"
       enable_services
     ;;
-    q9|quad9)
+    -q9|--quad9)
       backup_cfg
       write_config "9.9.9.9 2620:fe::fe" "Quad9"
       enable_services
     ;;
-	  off)
+    -s|--status)
+      systemd-resolve --status
+    ;;
+    -off)
       if [[ -f /etc/systemd/resolved.conf-orig ]]; then
         print_w "Backup exist at /etc/systemd/resolved.conf-orig."
         print_w "Restoring it back to /etc/systemd/resolved.conf."
         sudo mv /etc/systemd/resolved.conf{-orig,}
-      else        
+      else
         print_w "Backup (/etc/systemd/resolved.conf-orig) is not found."
         print_w "Creating new /etc/systemd/resolved.conf skeleton."
         printf '%s\n' "
@@ -154,12 +162,12 @@ if [[ "$#" -eq 1 ]]; then
 #ResolveUnicastSingleLabel=no
 " | sudo tee /etc/systemd/resolved.conf
       fi
+      sudo unlink /etc/resolv.conf
       sudo systemctl disable systemd-resolved.service
       restart_services
     ;;
-    -h|help|*)
+    -h|--help|*)
       print_usage
     ;;
   esac
 fi
-
