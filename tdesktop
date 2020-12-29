@@ -63,30 +63,30 @@ CONFIGDIR="$HOME/.local/share"
 # FUNCTIONS --------------------------------------------------------------------
 
 dir_is_exist() {
-	[[ -d "${CONFIGDIR%/}/TelegramDesktop-$1" ]] && return 0 || return 1
+  [[ -d "${CONFIGDIR%/}/TelegramDesktop-$1" ]] && return 0 || return 1
 }
 
 # Print message in brown.
 print_q() {
-	printf '\e[33m:: %s\n\e[m' "$@"
+  printf '\e[33m:: %s\n\e[m' "$@"
 }
 
 run_tdesktop() {
-	$TDESKTOP -many -workdir "$1"  &>/dev/null &
+  $TDESKTOP -many -workdir "$1"  &>/dev/null &
 }
 
 print_usage() {
-	printf '%s\n' "
+  printf '%s\n' "
   ${0##*/} is a helper script to manage Telegram Desktop configuration folders.
 
   Usage: ${0##*/} OPTION NAME
 
   OPTION:
-    -h, --help      print this text
-    ls, list        list of Telegram Desktop config folder
-    n, new          create new config folder
-    o, open         run Telegram Desktop using NAME config
-    rm, remove      remove a config folder
+    -h  --help      Print this text
+    -ls --list      List of Telegram Desktop config folder
+    -n  --new       Create new config folder
+    -o  --open      Run Telegram Desktop using NAME config
+    -rm --remove    Remove a config folder
 
   NAME is the configuration folder name.
 
@@ -97,22 +97,25 @@ print_usage() {
     ${0##*/} rm kuncen    - delete kuncen config folder
 "
 
-	exit
+  exit
 }
 
 # MAIN -------------------------------------------------------------------------
 
+# Limit to two arguments
+[[ "$#" -gt 2 ]] && print_usage
+
 # If this script is executed with only one argument
 if [[ "$#" -eq 1 ]]; then
-	case "$1" in
-		ls|list)
-			print_q 'List of Telegram Desktop config(s):'
-			printf '   - %s\n' "${TGACCOUNT[@]}"
-		;;
-		*)
-			print_usage
-		;;
-	esac
+  case "$1" in
+    ls|list)
+      print_q 'List of Telegram Desktop config(s):'
+      printf '   - %s\n' "${TGACCOUNT[@]}"
+    ;;
+    *)
+      print_usage
+    ;;
+  esac
 fi
 
 # Check dependencies
@@ -122,85 +125,85 @@ cd "$CONFIGDIR" || exit 1
 
 # Create an array of Telegram Desktop config folders
 mapfile -t TGACCOUNT < <(find . -maxdepth 1 -type d -name "TelegramDesktop*" \
-	| sort | awk -F'/' '{print $2}')
+  | sort | awk -F'/' '{print $2}')
 
 # Run zenity based GUI if this script executed without argument(s)
 if [[ "$#" -eq 0 ]]; then
-	WINTITLE="Multi Account Telegram Desktop"
-	# Check for GUI dialog on GNOME based DEs
-	if [[ -n $(command -v zenity) ]]; then
-		MENU=$(zenity \
-			--width=400 --height=400 \
-			--list --radiolist \
-			--title="$WINTITLE" \
-			--text="<b>Select Telegram account:</b>\n<i>Run</i> ${0##*/} -h <i>to display help text.</i>" \
-			--column='' --column='Telegram Config' $(printf " \'\' %s" ${TGACCOUNT[@]}))
-	# Check for GUI dialog on KDE based DEs
-	elif [[ -n $(command -v kdialogs) ]]; then
-		MENU=$(kdialog \
-			--geometry 400x100 \
-			--title "<b>Select Telegram account:</b><\n><i>Run</i> <code>${0##*/} -h</code> <i>to display help text.</i>" \
-			--combobox "$WINTEXT" $(printf " %s" ${TGACCOUNT[@]}))
-	# Check for YAD, a (better) alternative for GUI dialog
-	elif [[ -n $(command -v yad) ]]; then
-		MENU=$(yad \
-			--width=400 --height=400 \
-			--list --radiolist \
-			--title="$WINTITLE" \
-			--text="<b>Select Telegram account:</b>\r<i>Run</i> ${0##*/} -h <i>to display help text.</i>" \
-			--column='' --column='Telegram Config' $(printf " \'\' %s" ${TGACCOUNT[@]}))
-	else
-		print_usage
-	fi
-	[[ -n $MENU ]] && run_tdesktop "$CONFIGDIR/$MENU"
+  WINTITLE="Multi Account Telegram Desktop"
+  # Check for GUI dialog on GNOME based DEs
+  if [[ -n $(command -v zenity) ]]; then
+    MENU=$(zenity --width=400 \
+                  --height=400 \
+                  --list \
+                  --radiolist \
+                  --title="$WINTITLE" \
+                  --text="<b>Select Telegram account:</b>\n<i>Run</i> ${0##*/} -h <i>to display help text.</i>" \
+                  --column='' \
+                  --column='Telegram Config' "$(printf " \'\' %s" "${TGACCOUNT[@]}")")
+  # Check for GUI dialog on KDE based DEs
+  elif [[ -n $(command -v kdialogs) ]]; then
+    MENU=$(kdialog  --geometry 400x100 \
+                    --title "<b>Select Telegram account:</b><\n><i>Run</i> <code>${0##*/} -h</code> <i>to display help text.</i>" \
+                    --combobox "$WINTEXT" "$(printf ' %s' "${TGACCOUNT[@]}")")
+  # Check for YAD, a (better) alternative for GUI dialog
+  elif [[ -n $(command -v yad) ]]; then
+    MENU=$(yad  --width=400 \
+                --height=400 \
+                --list \
+                --radiolist \
+                --title="$WINTITLE" \
+                --text="<b>Select Telegram account:</b>\r<i>Run</i> ${0##*/} -h <i>to display help text.</i>" \
+                --column='' \
+                --column='Telegram Config' "$(printf " \'\' %s" "${TGACCOUNT[@]}")")
+  else
+    print_usage
+  fi
+  [[ -n $MENU ]] && run_tdesktop "$CONFIGDIR/$MENU"
 fi
 
 # If this script executed with two arguments
 if [[ "$#" -eq 2 ]]; then
-	case "$1" in
-		n|new)
-			if dir_is_exist "$2"; then
-				print_q "${CONFIGDIR%/}/TelegramDesktop-$2 already exist."
-			else
-				mkdir -p "${CONFIGDIR%/}/TelegramDesktop-$2"
-				print_q "${CONFIGDIR%/}/TelegramDesktop-$2 has been created." \
-				'You want to open it now? (yY[nN])'
-				read -rp ' ' opennewconfig
+  case "$1" in
+    -n|--new)
+      if dir_is_exist "$2"; then
+        print_q "${CONFIGDIR%/}/TelegramDesktop-$2 already exist."
+      else
+        mkdir -p "${CONFIGDIR%/}/TelegramDesktop-$2"
+        print_q "${CONFIGDIR%/}/TelegramDesktop-$2 has been created." \
+        'You want to open it now? (yY[nN])'
+        read -rp ' ' opennewconfig
 
-				case "$opennewconfig" in
-					y|Y)
-						run_tdesktop "${CONFIGDIR%/}/TelegramDesktop-$2"
-					;;
-				esac
-			fi
-		;;
-		o|open)
-			if dir_is_exist "$2"; then
-				run_tdesktop "${CONFIGDIR%/}/TelegramDesktop-$2"
-			else
-				print_q "${CONFIGDIR%/}/TelegramDesktop-$2 not found."
-			fi
-		;;
-		rm|remove)
-			if dir_is_exist "$2"; then
-				print_q 'Are you sure? (yY[nN])'
-				read -rp ' ' confirmdelete
+        case "$opennewconfig" in
+          y|Y)
+            run_tdesktop "${CONFIGDIR%/}/TelegramDesktop-$2"
+          ;;
+        esac
+      fi
+    ;;
+    -o|--open)
+      if dir_is_exist "$2"; then
+        run_tdesktop "${CONFIGDIR%/}/TelegramDesktop-$2"
+      else
+        print_q "${CONFIGDIR%/}/TelegramDesktop-$2 not found."
+      fi
+    ;;
+    -rm|--remove)
+      if dir_is_exist "$2"; then
+        print_q 'Are you sure? (yY[nN])'
+        read -rp ' ' confirmdelete
 
-				case "$confirmdelete" in
-					y|Y)
-						rm -r "${CONFIGDIR%/}/TelegramDesktop-$2"
-						print_q "${CONFIGDIR%/}/TelegramDesktop-$2 has been deleted."
-					;;
-				esac
-			else
-				print_q "${CONFIGDIR%/}/TelegramDesktop-$2 not found."
-			fi
-		;;
-		*)
-			print_usage
-		;;
-	esac
+        case "$confirmdelete" in
+          y|Y)
+            rm -r "${CONFIGDIR%/}/TelegramDesktop-$2"
+            print_q "${CONFIGDIR%/}/TelegramDesktop-$2 has been deleted."
+          ;;
+        esac
+      else
+        print_q "${CONFIGDIR%/}/TelegramDesktop-$2 not found."
+      fi
+    ;;
+    -h|--help|*)
+      print_usage
+    ;;
+  esac
 fi
-
-# Limit to two arguments
-[[ "$#" -gt 2 ]] && print_usage

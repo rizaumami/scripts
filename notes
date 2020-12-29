@@ -21,7 +21,7 @@
 # v0.3  - 2020/01/03 13:53:14
 #       - remove mdp as dependency
 #       - rearrange functions
-# v0.4  - 2020/12/26 23:37:27 
+# v0.4  - 2020/12/26 23:37:27
 #       - Major rewrite
 #
 # LICENSE ----------------------------------------------------------------------
@@ -75,7 +75,7 @@ not_exist() {
   print_w "Use ${0##*/} ls to list existing notes."
 }
 
-open_note() {      
+open_note() {
   if [[ -f "$2" ]]; then
     nano "$1" "$2"
   else
@@ -95,23 +95,25 @@ print_usage() {
   Usage: ${0##*/} OPTION
 
   OPTION:
-    -h, --help              Print this text
-    cp, copy                Copy a note to different filename
-    e, edit                 Edit a note
-    f, find                 Find string in notes filename
-    ls, list                Print notes in tree structure
-    mv, move, rn, rename    Move or rename a note to different filename
-    n, new                  Create a new note or add into todays note if exist
-    rm, remove              Remove or delete a note
-    s, search               Search string in notes. Case insensitive
-    v, version              Print script's version
-    migrate                 Migrate v0.1 - v0.3 note structure
+    -h  --help      Print this text
+    -cp --copy      Copy a note to different filename
+    -e  --edit      Edit a note
+    -f  --find      Find string in notes filename
+    -ls --list      Print notes in tree structure
+    -mv --move      Move or rename a note to different filename
+    -rn, rename     Move or rename a note to different filename
+    -n  --new       Create a new note or add into todays note if exist
+    -rm --remove    Remove or delete a note
+    -s  --search    Search string in notes. Case insensitive
+    -v  --view      View a note
+    --version       Print script's version
+    -m  --migrate   Migrate v0.1 - v0.3 note structure
 
   * To copy, edit, move or delete a note, we need to get its filename/date first.
   * Use ls to get note's filename
   * Note's date can be written in form of YYYY-MM-DD or YYYYMMDD.
   * E.g. 2020-11-12 or 20201112.
-  
+
   Example:
     ${0##*/} e 20201112               - edit note dated 12 November 2020
     ${0##*/} f 2019                   - find '2019' string in note's filename
@@ -139,21 +141,21 @@ cd "$STORAGE" || exit 1
 
 if [[ "$#" -eq 1 ]]; then
   case $1 in
-    cp|copy|mv|move|rn|rename)
+    -cp|--copy|-mv|--move|-rn|--rename)
       print_w "$1 need a SOURCE and a TARGET filename."
       print_w "Example: $1 20201112 /tmp/useless"
     ;;
-    e|edit)
+    -e|--edit)
       if [[ -f "$CURRENTNOTE" ]]; then
         open_note '-S' "$CURRENTNOTE"
       else
         not_exist "$CURRENTNOTE"
       fi
     ;;
-    ls|list)
+    -ls|--list)
       tree "$STORAGE"
     ;;
-    migrate)
+    -m|--migrate)
       print_w "Migrating old notes..."
       while read -r OLDNOTE; do
         mkdir -p "${OLDNOTE:2:4}/${OLDNOTE:7:2}"
@@ -161,26 +163,26 @@ if [[ "$#" -eq 1 ]]; then
       done < <(find . -maxdepth 1 -type f)
       print_w "Done."
     ;;
-    n|new)
+    -n|--new)
       mkdir -p "$STORAGE/$(date '+%Y/%m')"
-      # Note is differentiated by creation date. We will write to the same file 
+      # Note is differentiated by creation date. We will write to the same file
       # if taking a note on a same day.
       # Append a timestamp everytime we taking a note.
       printf '\n%s\n' "## $(printf '%(%R:%S)T\n' '-1')" >> "$CURRENTNOTE"
       open_note "-Dl" "$CURRENTNOTE"
     ;;
-    rm|remove)
+    -rm|--remove)
       print_w "$1: missing file operand"
       print_w "Try: ${0##*/} $1 NOTE_TO_BE_REMOVED"
     ;;
-    v)
+    -v|--view)
       if [[ -f "$CURRENTNOTE" ]]; then
         open_note '-Sv' "$CURRENTNOTE"
       else
         not_exist "$CURRENTNOTE"
       fi
     ;;
-    version)
+    --version)
       print_w "${0##*/} v0.4 - 2020/12/26 23:37:27"
     ;;
     [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9])
@@ -199,23 +201,23 @@ fi
 
 if [[ $# -eq 2 || $# -eq 3 ]]; then
   case $1 in
-    cp|copy)
+    -cp|--copy)
       NOTETOCOPY="$(get_path "$2")"
-      
+
       if [[ -f "$NOTETOCOPY" ]]; then
         cp -v "$NOTETOCOPY" "$3"
       else
         not_exist "$2"
       fi
     ;;
-    e|edit)
+    -e|--edit)
       if [[ $2 =~ ^[0-9]{8}$ ]]; then
         open_note "-Dl" "$(get_path "$2")"
       else
         open_note "-Dl" "$(get_path "$2")"
       fi
     ;;
-    f|find)
+    -f|--find)
       mapfile -t SEARCHRESULT < <(find . -type f  -name "*$2*" | sort \
         | awk -F[/] '{print $4}')
 
@@ -224,25 +226,25 @@ if [[ $# -eq 2 || $# -eq 3 ]]; then
         printf '   %s\n' "$((i+1)). ${SEARCHRESULT[$i]}"
       done
     ;;
-    ls|list)
+    -ls|--list)
       if [[ -d "$STORAGE/$2" ]]; then
         tree "$STORAGE/$2"
       else
         not_exist "$STORAGE/$2"
       fi
     ;;
-    mv|move|rn|rename)
+    -mv|--move|-rn|--rename)
       NOTETOMOVE="$(get_path "$2")"
-      
+
       if [[ -f "$NOTETOMOVE" ]]; then
         mv -v "$NOTETOMOVE" "$3"
       else
         not_exist "$2"
       fi
     ;;
-    rm|remove)
+    -rm|--remove)
       NOTETOREM="$(get_path "$2")"
-      
+
       if [[ -f "$NOTETOREM" ]]; then
         print_w "Are you sure want to delete $NOTETOREM? (yY[nN])"
         read -rp ' ' confirmdelete
@@ -257,11 +259,11 @@ if [[ $# -eq 2 || $# -eq 3 ]]; then
         not_exist "$2"
       fi
     ;;
-    s|search)
+    -s|--search)
       print_w 'Search result:'
       grep -rin --color "$2" -- *
     ;;
-    v|view)
+    -v|--view)
       open_note '-Sv' "$(get_path "$2")"
     ;;
   esac

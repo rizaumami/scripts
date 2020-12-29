@@ -76,9 +76,10 @@ usage() {
   Usage: ${0##*/} OPTION TARGET
 
   OPTION :
-    m, mount      mounting /proc, /sys, /dev, /dev/pts, /run and /etc/resolv.conf
-    u, unmount    unmounting mounted folders and files
-    c, chroot     mount host and then change root to TARGET directory
+    -h  --help      Print this text
+    -m  --mount     Mounting /proc, /sys, /dev, /dev/pts, /run and /etc/resolv.conf
+    -u  --unmount   Unmounting mounted folders and files
+    -c  --chroot    Mount host and then change root to TARGET directory
 
   TARGET is the directory where we're going to change root into.
 "
@@ -96,16 +97,16 @@ fi
 [[ ! -d $2 ]] && printf '\n  %s\n\n' 'Target does not exist.' && exit
 
 case "$1" in
-  c|chroot)
+  -c|--chroot)
     mount_host_to_target && change_root
   ;;
-  m|mount)
+  -m|--mount)
     mount_host_to_target
   ;;
-  u|umount)
+  -u|--umount)
     umount_target
   ;;
-  *)
+  -h|--help|*)
     usage
   ;;
 esac

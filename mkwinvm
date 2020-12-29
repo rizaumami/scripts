@@ -214,10 +214,10 @@ print_usage() {
   Usage: ${0##*/} -n VMNAME -t WINDOWS_VERSION -a ARCHITECTURE
 
   OPTION:
-    -h      print this text
-    -n      guest operating system machine name
-    -t      operating system type ( 7 or 10)
-    -a      guest architecture (32 or 64)
+    -h  --help    Print this text
+    -n  --name    Guest operating system machine name
+    -t  --type    Operating system type ( 7 or 10)
+    -a  --arch    Guest architecture (32 or 64)
 
   VMNAME is guest operating system machine name.
 
@@ -257,7 +257,7 @@ fi
 
 while getopts ":n:t:a:" o; do
   case "${o}" in
-    n)
+    -n|--new)
       VMNAME="${OPTARG}"
       # Check if VM with same name has been created.
       if [[ -d "${VBOXVMS}/${VMNAME}" ]]; then
@@ -265,7 +265,7 @@ while getopts ":n:t:a:" o; do
         exit
       fi
       ;;
-    t)
+    -t|--type)
       if [[ ${OPTARG} -eq 7 || ${OPTARG} -eq 10 ]]; then
         # Guest operating systems presently known to VirtualBox.
         # Use command: VBoxManage list ostypes
@@ -275,14 +275,14 @@ while getopts ":n:t:a:" o; do
         exit
       fi
       ;;
-    a)
+    -a|--arch)
       if [[ $OPTARG -eq 32 ]]; then
         OSTYPE="${OSTYPE}"
       else
         print_b 'Only accept 32 or 64 bit architecture'
       fi
       ;;
-    *)
+    -h|--help|*)
       print_usage
       ;;
   esac
