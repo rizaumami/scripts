@@ -1,0 +1,124 @@
+#!/usr/bin/env bash
+
+# This script will rename files into name that comply with FATX limitation as
+# listed below.
+#
+# FATX limitation:
+# * 4GB / 4096 Megabyte 4294967296 bytes Max file size
+# * 42 characters for file names (there are also a bunch of characters not
+#   supported , accepted ones are limited to
+#   ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!#$%&'()-.@[]^_`{}~
+#   (that includes spaces)
+# * (DVD's do not have the same limits and don't use the FATX file system)
+# * A maximum of 240 in total folder depth (thats a folder inside a folder
+#   inside a folder inside a folder up to 240)
+# * A maximum of 240 folders/files in each folder (thats a flat limit)
+# * A maximum of 4096 files/folders in a single root folder (this is the grand
+#   total of files that can be stored in any single root sub folder)
+# * Cluster sizes supported = 4 KB 8GB to 64GB, 8 KB 65GB up to 128GB partitions,
+#   16 KB 129GB to 256GB partitions, 32 KB 257GB up to 512GB partitions, 64 KB
+#   513GB up to 1TB partitions
+# * Save data is also under the 240 limit and if this is hit you will not be
+#   able to start any new software after as it will just boot to a black screen
+#
+# Source: https://www.epforums.org/showthread.php?87071-XBOX-FATX-limitations-and-notes
+
+# Sahri Riza Umami
+#   v0.1 - 2021/01/26 15:58:38
+#        - Initial release
+#
+# LICENSE ----------------------------------------------------------------------
+#
+# This is free and unencumbered software released into the public domain.
+#
+# Anyone is free to copy, modify, publish, use, compile, sell, or
+# distribute this software, either in source code form or as a compiled
+# binary, for any purpose, commercial or non-commercial, and by any
+# means.
+#
+# In jurisdictions that recognize copyright laws, the author or authors
+# of this software dedicate any and all copyright interest in the
+# software to the public domain. We make this dedication for the benefit
+# of the public at large and to the detriment of our heirs and
+# successors. We intend this dedication to be an overt act of
+# relinquishment in perpetuity of all present and future rights to this
+# software under copyright law.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+# IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR
+# OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+# ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+# OTHER DEALINGS IN THE SOFTWARE.
+#
+# For more information, please refer to <http://unlicense.org>
+#
+# ------------------------------------------------------------------------------
+
+# FUNCTIONS --------------------------------------------------------------------
+
+print_usage() {
+  printf '%s\n' "
+  ${0##*/} will rename files to comply with FATX limitations.
+
+  Usage: ${0##*/} OPTION
+
+  OPTION:
+    -c --copy       Copy renamed files to output directory.
+    -s --simulate   Print names of files to be renamed, but don't rename.
+    -h --help       Print this Help text.
+"
+  exit
+}
+
+# MAIN -------------------------------------------------------------------------
+
+# Only accept one argument
+[[ $# -lt 1 ]] || [[ $# -gt 1 ]] && print_usage
+
+declare BNAME CLEAN EXT NLEN
+# Directory of renamed files
+OUTDIR='fatxrenamed'
+
+# Declare an associative array
+# Need Bash v4 or higher
+declare -A FNAMES
+
+while read -r rom; do
+  # Get the file extension
+	EXT="${rom##*.}"
+  # Get basename
+  BNAME="${rom##*/}"
+  BNAME="${BNAME%.*}"
+  # Remove comma
+  CLEAN="${BNAME//,/}"
+  # Replace plus sign with ampersand
+  CLEAN="${CLEAN//+/&}"
+  # Max FATX name length is 42. Subtract 1 for dot in front of file extension.
+  NLEN=$((41-${#EXT}))
+
+  if [[ ${#BNAME} -gt $NLEN ]]; then
+    CLEAN="${CLEAN:0:$NLEN}"
+  fi
+
+  FNAMES["${rom}"]="$CLEAN.$EXT"
+done < <(find . -type f)
+
+mkdir "$OUTDIR"
+
+case $1 in
+  -cp|--copy)
+    for key in "${!FNAMES[@]}"; do
+      cp -v "${key}" "$OUTDIR/${FNAMES[${key}]}"
+    done
+  ;;
+  -s|--simulate)
+    for key in "${!FNAMES[@]}"; do
+      echo "rename(${key}, ${FNAMES[${key}]})"
+    done
+  ;;
+  *)
+    print_usage
+  ;;
+esac
