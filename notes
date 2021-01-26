@@ -56,7 +56,7 @@
 # VARIABLES --------------------------------------------------------------------
 
 # Path to notes storage.
-STORAGE="/mnt/datahdd/Notes"
+STORAGE="/mnt/data/Notes"
 # Todays note
 CURRENTNOTE="$STORAGE/$(printf '%(%Y/%m/%F)T')"
 
@@ -115,13 +115,14 @@ print_usage() {
   * E.g. 2020-11-12 or 20201112.
 
   Example:
-    ${0##*/} e 20201112               - edit note dated 12 November 2020
-    ${0##*/} f 2019                   - find '2019' string in note's filename
-    ${0##*/} ls 2019                  - list notes from year '2019'
-    ${0##*/} mv 20200511 /tmp/useless - move or rename note dated 11 May 2020 to '/tmp/useless'
-    ${0##*/} rm 2020-11-12            - edit note dated 12 November 2020
-    ${0##*/} s duit                   - search for 'duit' string in notes
+    ${0##*/} -e 20201112               - edit note dated 12 November 2020
+    ${0##*/} -f 2019                   - find '2019' string in note's filename
+    ${0##*/} -ls 2019                  - list notes from year '2019'
+    ${0##*/} -mv 20200511 /tmp/useless - move note dated 11 May 2020 to '/tmp/useless'
+    ${0##*/} -rm 2020-11-12            - edit note dated 12 November 2020
+    ${0##*/} -s duit                   - search for 'duit' string in notes
 "
+  exit
 }
 
 # MAIN -------------------------------------------------------------------------
@@ -193,7 +194,7 @@ if [[ "$#" -eq 1 ]]; then
       # Using shorter date's note (eg. 20201112) to view the note
       open_note '-Sv' "$(get_path "$1")"
     ;;
-    -h|--help)
+    *)
       print_usage
     ;;
   esac
@@ -265,6 +266,9 @@ if [[ $# -eq 2 || $# -eq 3 ]]; then
     ;;
     -v|--view)
       open_note '-Sv' "$(get_path "$2")"
+    ;;
+    *)
+      print_usage
     ;;
   esac
 fi
