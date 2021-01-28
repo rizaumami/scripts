@@ -1,0 +1,106 @@
+#!/usr/bin/env bash
+
+# DESCRIPTION ------------------------------------------------------------------
+#
+# This is an xbfuse wrapper script to mount XISO (Microsoft Xbox ISO format).
+#
+# DEPENDENCY -------------------------------------------------------------------
+#
+# - xbfuse
+#   Get it from https://github.com/multimediamike/xbfuse.
+#
+# CHANGELOG --------------------------------------------------------------------
+#
+# Sahri Riza Umami
+# v0.1  - 2021/01/28 21:30:03
+#         Initial realase.
+#
+# LICENSE ----------------------------------------------------------------------
+#
+# This is free and unencumbered software released into the public domain.
+#
+# Anyone is free to copy, modify, publish, use, compile, sell, or
+# distribute this software, either in source code form or as a compiled
+# binary, for any purpose, commercial or non-commercial, and by any
+# means.
+#
+# In jurisdictions that recognize copyright laws, the author or authors
+# of this software dedicate any and all copyright interest in the
+# software to the public domain. We make this dedication for the benefit
+# of the public at large and to the detriment of our heirs and
+# successors. We intend this dedication to be an overt act of
+# relinquishment in perpetuity of all present and future rights to this
+# software under copyright law.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+# IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR
+# OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+# ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+# OTHER DEALINGS IN THE SOFTWARE.
+#
+# For more information, please refer to <http://unlicense.org>
+#
+# ------------------------------------------------------------------------------
+
+# FUNCTIONS --------------------------------------------------------------------
+
+print_usage() {
+  printf '%s\n' "
+ Usage: ${0##*/} ARG
+
+ ARG can be -h or --help to print this text, or path to XISO file to be mounted.
+
+ Example:
+   - ${0##*/} -h
+   - ${0##*/} /home/iza/CoolGame.iso
+"
+  exit
+}
+
+# MAIN -------------------------------------------------------------------------
+
+if [[ $# -eq 0 ]]; then
+  printf ' %s\n' 'No files specified.'
+  print_usage
+fi
+
+if [[ $# -gt 1 ]]; then
+  printf ' %s\n' 'Too much arguments.'
+  print_usage
+fi
+
+case $1 in
+  -h|--help)
+    printf ' %s\n' "${0##*/} is an xbfuse wrapper script to mount XISO (Microsoft Xbox ISO format)."
+    print_usage
+  ;;
+  *)
+    if [[ ! -f $1 ]]; then
+      printf '\e[31m:: %s\n\e[m' "Cannot mount $1" 'No such file'
+      exit
+    fi
+
+    # Check if xbfuse exist in user's PATH
+    if [[ -z $(command -v "xbfuse") ]]; then
+      printf '\e[33m:: %s\n\e[m' 'xbfuse not found.' \
+             "Get it from: https://github.com/multimediamike/xbfuse"
+      exit
+    fi
+
+    # Get basename
+    XISO="${1##*/}"
+    XISO="$HOME/${XISO%.*}"
+
+    # If the mountpoint is in mtab, then probably the file is already mounted
+    # or the mountpoint is in use to mount another file. Better to avoid it.
+    if grep -q "$XISO" /etc/mtab; then
+      printf '\e[31m:: %s\n\e[m' 'Aborted.' "$XISO is not empty."
+    else
+      mkdir -p "$XISO"
+      xbfuse "$1" "$XISO"
+      printf ':: %s\n' "$1" 'has been successfully mounted on:' "$XISO"
+    fi
+  ;;
+esac
