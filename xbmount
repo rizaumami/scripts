@@ -44,13 +44,17 @@
 #
 # ------------------------------------------------------------------------------
 
+# VARIABLES --------------------------------------------------------------------
+
+MNTDIR="$HOME/Desktop"
+
 # FUNCTIONS --------------------------------------------------------------------
 
 print_usage() {
   printf '%s\n' "
  Usage: ${0##*/} ARG
 
- ARG can be -h or --help to print this text, or path to XISO file to be mounted.
+ ARG can be -h or --help to print this text, or XISO file to be mounted.
 
  Example:
    - ${0##*/} -h
@@ -91,7 +95,7 @@ case $1 in
 
     # Get basename
     XISO="${1##*/}"
-    XISO="$HOME/${XISO%.*}"
+    XISO="$MNTDIR/${XISO%.*}"
 
     # If the mountpoint is in mtab, then probably the file is already mounted
     # or the mountpoint is in use to mount another file. Better to avoid it.
