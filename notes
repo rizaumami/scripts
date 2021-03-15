@@ -101,7 +101,7 @@ print_usage() {
     -f  --find      Find string in notes filename
     -ls --list      Print notes in tree structure
     -mv --move      Move or rename a note to different filename
-    -rn, rename     Move or rename a note to different filename
+    -rn --rename    Move or rename a note to different filename
     -n  --new       Create a new note or add into todays note if exist
     -rm --remove    Remove or delete a note
     -s  --search    Search string in notes. Case insensitive
@@ -228,10 +228,16 @@ if [[ $# -eq 2 || $# -eq 3 ]]; then
       done
     ;;
     -ls|--list)
-      if [[ -d "$STORAGE/$2" ]]; then
-        tree "$STORAGE/$2"
+      if [[ ${#2} -eq 4 ]]; then
+        VAULT="$STORAGE/$2"
+      elif [[ ${#2} -eq 6 ]]; then
+        VAULT="$STORAGE/${2:0:4}/${2:4:2}"
+      fi
+
+      if [[ -d "$VAULT" ]]; then
+        tree "$VAULT"
       else
-        not_exist "$STORAGE/$2"
+        not_exist "$VAULT"
       fi
     ;;
     -mv|--move|-rn|--rename)
