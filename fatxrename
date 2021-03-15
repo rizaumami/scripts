@@ -87,7 +87,7 @@ declare -A FNAMES
 
 while read -r rom; do
   # Get the file extension
-	EXT="${rom##*.}"
+  EXT="${rom##*.}"
   # Get basename
   BNAME="${rom##*/}"
   BNAME="${BNAME%.*}"
