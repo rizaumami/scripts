@@ -1,0 +1,106 @@
+#!/usr/bin/env bash
+
+# This script will download all pages in a Reddit wiki in markdown format for
+# archival.
+# Inspired by: https://git.sr.ht/~shreyasminocha/clone-reddit-wiki
+
+# LICENSE ----------------------------------------------------------------------
+#
+# This is free and unencumbered software released into the public domain.
+#
+# Anyone is free to copy, modify, publish, use, compile, sell, or
+# distribute this software, either in source code form or as a compiled
+# binary, for any purpose, commercial or non-commercial, and by any
+# means.
+#
+# In jurisdictions that recognize copyright laws, the author or authors
+# of this software dedicate any and all copyright interest in the
+# software to the public domain. We make this dedication for the benefit
+# of the public at large and to the detriment of our heirs and
+# successors. We intend this dedication to be an overt act of
+# relinquishment in perpetuity of all present and future rights to this
+# software under copyright law.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+# IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR
+# OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+# ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+# OTHER DEALINGS IN THE SOFTWARE.
+#
+# For more information, please refer to <http://unlicense.org>
+#
+# ------------------------------------------------------------------------------
+
+# VARIABLES --------------------------------------------------------------------
+
+REDDITAPI='https://api.reddit.com'
+
+# FUNCTIONS --------------------------------------------------------------------
+
+print_usage() {
+    printf '%s\n' "
+  ${0##*/} is a Reddit wiki downloader script.
+  This script will download all pages in a Reddit wiki in markdown format for
+  archival.
+
+  Usage: ${0##*/} SUBREDDIT
+
+  Example:
+    - ${0##*/} originalxbox
+"
+    exit
+}
+
+# MAIN -------------------------------------------------------------------------
+
+if [[ -z $(command -v "wget") ]]; then
+  print_w "wget not found."
+  print_w "Install the proper wget distribution package for your system."
+  exit
+fi
+
+[[ $# -ne 1 ]] && print_usage
+
+case $1 in
+  -h|--help)
+    print_usage
+  ;;
+  *)
+    # Get wiki's index
+    if wget -q --method=HEAD "https://reddit.com/r/$1"; then
+      mkdir -p "$1"
+      cd "$1" || exit
+      wget -q --show-progress "$REDDITAPI/r/$1/wiki/pages"
+    else
+      echo "r/$1: There doesn't seem to be anything here."
+      exit
+    fi
+    # Save pages content as PAGES
+    PAGES=$(<pages)
+    # Remove double quotes
+    PAGES=${PAGES//\"/}
+    # Remove strings from the beginning until first left bracket found
+    PAGES=${PAGES#*[}
+    # Remove strings starts from right bracket until the end of file
+    # Use comma as separator, and save it as WIKIS array
+    IFS=", " read -ra WIKIS <<< "${PAGES%]*}"
+
+    for ((NUM=${#WIKIS[@]},i=0; i<NUM;i++)); do
+      # If WIKIS contains slash, create folder using its basename
+      if [[ ${WIKIS[i]} =~ '/' ]]; then
+        mkdir -p "${WIKIS[i]%/*}"
+      fi
+      # Get wiki page
+      wget -q --show-progress "$REDDITAPI/r/$1/wiki/${WIKIS[i]}"
+      # Save its contents as WIKI
+      WIKI=$(<"${WIKIS[i]##*/}")
+      # Get only its markdown content
+      WIKI=${WIKI#*content_md\": \"}
+      # Save it as markdown file
+      printf '%b' "${WIKI%%\",*}" > "${WIKIS[i]}.md"
+      rm "${WIKIS[i]##*/}"
+    done
+  ;;
+esac
