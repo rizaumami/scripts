@@ -244,7 +244,14 @@ if [[ $# -eq 2 || $# -eq 3 ]]; then
       NOTETOMOVE="$(get_path "$2")"
 
       if [[ -f "$NOTETOMOVE" ]]; then
-        mv -v "$NOTETOMOVE" "$3"
+        if [[ -f "$3" ]]; then
+          print_w "$3 exist."
+          print_w "Delete it first and then try again."
+          exit
+        else
+          mkdir -p "${3%/*}"
+          mv -v "$NOTETOMOVE" "$3"
+        fi
       else
         not_exist "$2"
       fi
