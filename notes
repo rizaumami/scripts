@@ -23,6 +23,9 @@
 #       - rearrange functions
 # v0.4  - 2020/12/26 23:37:27
 #       - Major rewrite
+# v0.5  - 2022/11/13 20:05:49
+#       - open note by its index
+#       - add YYMMDD date option
 #
 # LICENSE ----------------------------------------------------------------------
 #
@@ -56,23 +59,53 @@
 # VARIABLES --------------------------------------------------------------------
 
 # Path to notes storage.
-STORAGE="/mnt/data/Notes"
+STORAGE="/mnt/docs/Notes"
 # Todays note
 CURRENTNOTE="$STORAGE/$(printf '%(%Y/%m/%F)T')"
 
 # FUNCTIONS --------------------------------------------------------------------
 
-get_path() {
-  if [[ $1 =~ ^[0-9]{8}$ ]]; then
-    printf "%s" "$STORAGE/${1:0:4}/${1:4:2}/${1:0:4}-${1:4:2}-${1:6:2}"
+get_note() {
+  # Remove dashes from note's name.
+  N=${1//-/}
+  # Is it numbers?
+  re='^[0-9]+$'
+  if [[ $N =~ $re ]]; then
+    # If YYYY-MM-DD or YYYYMMDD given.
+    if [[ $N =~ ^[0-9]{8}$ ]]; then
+      printf '%s' "$STORAGE/${N:0:4}/${N:4:2}/${N:0:4}-${N:4:2}-${N:6:2}"
+    # If YYMMDD given.
+    elif [[ $N =~ ^[0-9]{6}$ ]]; then
+      Y=$(date '+%Y')
+      YEAR="${Y:0:2}${N:0:2}"
+      printf '%s' "$STORAGE/$YEAR/${N:2:2}/$YEAR-${N:2:2}-${N:4:2}"
+    # If index given.
+    elif [[ ${#N} -gt 0 && ${#N} -lt 6 ]]; then
+      mapfile -t NOTES < <(find "$STORAGE" -type f | sort)
+      # Printed index is started from 1.
+      if [[ $N -eq 0 ]]; then
+        printf '%s' "$1"
+      else
+        printf '%s' "${NOTES[$1-1]}"
+      fi
+    fi
   else
-    printf "%s" "$STORAGE/${1:0:4}/${1:5:2}/$1"
+    printf '%s' "$1"
   fi
 }
 
+list_notes() {
+  mapfile -t NOTES < <(find "$1" -type f | sort)
+
+  for ((NUM=${#NOTES[@]},i=0; i<NUM;i++)); do
+    echo "$((i+1)). ${NOTES[i]##*/}"
+  done
+}
+
 not_exist() {
-  print_w "Cannot access ${1##*/}: No such file or directory."
-  print_w "Use ${0##*/} ls to list existing notes."
+  print_w "Cannot open ${1##*/}: No such file or directory."
+  print_w "Use '${0##*/} -ls' to list existing notes."
+  exit
 }
 
 open_note() {
@@ -92,35 +125,39 @@ print_usage() {
   printf '%s\n' "
   ${0##*/} is a simple note taking script.
 
-  Usage: ${0##*/} OPTION
+  Usage: ${0##*/} OPTION <NOTES>
 
   OPTION:
-    -h  --help      Print this text
-    -cp --copy      Copy a note to different filename
-    -e  --edit      Edit a note
-    -f  --find      Find string in notes filename
-    -ls --list      Print notes in tree structure
-    -mv --move      Move or rename a note to different filename
-    -rn --rename    Move or rename a note to different filename
-    -n  --new       Create a new note or add into todays note if exist
-    -rm --remove    Remove or delete a note
-    -s  --search    Search string in notes. Case insensitive
-    -v  --view      View a note
-    --version       Print script's version
-    -m  --migrate   Migrate v0.1 - v0.3 note structure
+    -h  --help      Print this text.
+    -cp --copy      Copy a note to different filename.
+    -e  --edit      Edit a note.
+    -f  --find      Find string in notes filename.
+    -i  --index     Print notes in numbered order.
+    -ls --list      Print notes in tree structure.
+    -mv --move      Move or rename a note to different filename.
+    -r --rename     Move or rename a note to different filename.
+    -n  --new       Create a new note or add into todays note if exist.
+    -rm --remove    Remove or delete a note.
+    -s  --search    Search string in notes. Case insensitive.
+    -v  --view      View a note.
+    --version       Print version information and exit.
+    -m  --migrate   Migrate v0.1 - v0.3 note structure.
 
-  * To copy, edit, move or delete a note, we need to get its filename/date first.
-  * Use ls to get note's filename
-  * Note's date can be written in form of YYYY-MM-DD or YYYYMMDD.
-  * E.g. 2020-11-12 or 20201112.
+  NOTES:
+    * Get notes filename/date first to copy, edit, move or delete it.
+    * Use -ls to get note's filename.
+    * Use -i to get note's index.
+    * Note's date can be written in form of YYYY-MM-DD, YYYYMMDD or YYMMDD.
+    * E.g. 2020-11-12 or 20201112 or 221112.
 
   Example:
     ${0##*/} -e 20201112               - edit note dated 12 November 2020
     ${0##*/} -f 2019                   - find '2019' string in note's filename
     ${0##*/} -ls 2019                  - list notes from year '2019'
-    ${0##*/} -mv 20200511 /tmp/useless - move note dated 11 May 2020 to '/tmp/useless'
-    ${0##*/} -rm 2020-11-12            - edit note dated 12 November 2020
+    ${0##*/} -mv 200511 /tmp/useless   - move note dated 11 May 2020 to '/tmp/useless'
+    ${0##*/} -rm 2020-11-12            - delete note dated 12 November 2020
     ${0##*/} -s duit                   - search for 'duit' string in notes
+    ${0##*/} -e 23                     - edit note by index 23
 "
   exit
 }
@@ -142,16 +179,15 @@ cd "$STORAGE" || exit 1
 
 if [[ "$#" -eq 1 ]]; then
   case $1 in
-    -cp|--copy|-mv|--move|-rn|--rename)
+    -cp|--copy|-mv|--move|-r|--rename)
       print_w "$1 need a SOURCE and a TARGET filename."
       print_w "Example: $1 20201112 /tmp/useless"
     ;;
     -e|--edit)
-      if [[ -f "$CURRENTNOTE" ]]; then
-        open_note '-S' "$CURRENTNOTE"
-      else
-        not_exist "$CURRENTNOTE"
-      fi
+      open_note '-S' "$CURRENTNOTE"
+    ;;
+    -i|--index)
+      list_notes "$STORAGE"
     ;;
     -ls|--list)
       tree "$STORAGE"
@@ -177,22 +213,13 @@ if [[ "$#" -eq 1 ]]; then
       print_w "Try: ${0##*/} $1 NOTE_TO_BE_REMOVED"
     ;;
     -v|--view)
-      if [[ -f "$CURRENTNOTE" ]]; then
-        open_note '-Sv' "$CURRENTNOTE"
-      else
-        not_exist "$CURRENTNOTE"
-      fi
+      open_note '-Sv' "$CURRENTNOTE"
     ;;
     --version)
-      print_w "${0##*/} v0.4 - 2020/12/26 23:37:27"
+      print_w "${0##*/} v0.5 - 13/11/2022 20:05:49"
     ;;
-    [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9])
-      # Using note's filename (eg. 2020-11-12) to view the note
-      open_note '-Sv' "$(get_path "$1")"
-    ;;
-    [0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9])
-      # Using shorter date's note (eg. 20201112) to view the note
-      open_note '-Sv' "$(get_path "$1")"
+    [0-9]*)
+      open_note '-Sv' "$(get_note "$1")"
     ;;
     *)
       print_usage
@@ -203,29 +230,31 @@ fi
 if [[ $# -eq 2 || $# -eq 3 ]]; then
   case $1 in
     -cp|--copy)
-      NOTETOCOPY="$(get_path "$2")"
-
-      if [[ -f "$NOTETOCOPY" ]]; then
-        cp -v "$NOTETOCOPY" "$3"
+      if [[ -f $(get_note "$2") ]]; then
+        cp -v "$( get_note "$2")" "$3"
       else
         not_exist "$2"
       fi
     ;;
     -e|--edit)
-      if [[ $2 =~ ^[0-9]{8}$ ]]; then
-        open_note "-Dl" "$(get_path "$2")"
-      else
-        open_note "-Dl" "$(get_path "$2")"
-      fi
+      open_note "-Dl" "$(get_note "$2")"
     ;;
     -f|--find)
-      mapfile -t SEARCHRESULT < <(find . -type f  -name "*$2*" | sort \
-        | awk -F[/] '{print $4}')
+      mapfile -t SEARCHRESULT < <(find . -type f  -name "*$2*" | sort | awk -F[/] '{print $4}')
 
       print_w 'Search title result:'
       for i in "${!SEARCHRESULT[@]}"; do
         printf '   %s\n' "$((i+1)). ${SEARCHRESULT[$i]}"
       done
+    ;;
+    -i|--index)
+      if [[ ${#2} -eq 4 ]]; then
+        VAULT="$STORAGE/$2"
+      elif [[ ${#2} -eq 6 ]]; then
+        VAULT="$STORAGE/${2:0:4}/${2:4:2}"
+      fi
+
+      list_notes "$VAULT"
     ;;
     -ls|--list)
       if [[ ${#2} -eq 4 ]]; then
@@ -241,7 +270,7 @@ if [[ $# -eq 2 || $# -eq 3 ]]; then
       fi
     ;;
     -mv|--move|-rn|--rename)
-      NOTETOMOVE="$(get_path "$2")"
+      NOTETOMOVE="$(get_note "$2")"
 
       if [[ -f "$NOTETOMOVE" ]]; then
         if [[ -f "$3" ]]; then
@@ -257,7 +286,7 @@ if [[ $# -eq 2 || $# -eq 3 ]]; then
       fi
     ;;
     -rm|--remove)
-      NOTETOREM="$(get_path "$2")"
+      NOTETOREM="$(get_note "$2")"
 
       if [[ -f "$NOTETOREM" ]]; then
         print_w "Are you sure want to delete $NOTETOREM? (yY[nN])"
@@ -278,7 +307,7 @@ if [[ $# -eq 2 || $# -eq 3 ]]; then
       grep -rin --color "$2" -- *
     ;;
     -v|--view)
-      open_note '-Sv' "$(get_path "$2")"
+      open_note '-Sv' "$(get_note "$2")"
     ;;
     *)
       print_usage
