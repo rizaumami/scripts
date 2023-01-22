@@ -9,6 +9,17 @@
 # - xbfuse
 #   Get it from https://github.com/multimediamike/xbfuse.
 #
+#
+# $HOME/.local/share/nemo/actions/xisomount.nemo_action ------------------------
+#
+# [Nemo Action]
+# Name=Mount Xbox ISO
+# Comment=Mount XISO (The Original Xbox's ISO)
+# Selection=s
+# Exec=/home/iza/.local/bin/xbmount %F
+# Stock-Id=gtk-cdrom
+# Extensions=iso;
+#
 # CHANGELOG --------------------------------------------------------------------
 #
 # Sahri Riza Umami
@@ -46,7 +57,11 @@
 
 # VARIABLES --------------------------------------------------------------------
 
-MNTDIR="$HOME/Desktop"
+# Mount directory.
+# $HOME is preferred because mounted xiso would be shown in GUI file manager.
+MNTDIR="$HOME/XBMount"
+# PATH to xbfuse binary.
+XBFUSE="$HOME/.local/bin/xbfuse"
 
 # FUNCTIONS --------------------------------------------------------------------
 
@@ -58,12 +73,21 @@ print_usage() {
 
  Example:
    - ${0##*/} -h
-   - ${0##*/} /home/iza/CoolGame.iso
+   - ${0##*/} $HOME/CoolGame.iso
 "
   exit
 }
 
 # MAIN -------------------------------------------------------------------------
+
+# Clean up unused mountpoint.
+while read -r mountdir; do
+  if grep -qe "${mountdir// /\\\\040}" /etc/mtab; then
+    true
+  else
+    rmdir "$mountdir"
+  fi
+done < <(find "$MNTDIR" -mindepth 1 -maxdepth 1 -type d)
 
 if [[ $# -eq 0 ]]; then
   printf ' %s\n' 'No files specified.'
@@ -82,18 +106,22 @@ case $1 in
   ;;
   *)
     if [[ ! -f $1 ]]; then
+      zenity --warning --title='File not found' --text="$1 not found."
       printf '\e[31m:: %s\n\e[m' "Cannot mount $1" 'No such file'
       exit
     fi
 
-    # Check if xbfuse exist in user's PATH
-    if [[ -z $(command -v "xbfuse") ]]; then
+    # Check if xbfuse exist in user's PATH.
+    if [[ -z $(command -v "$XBFUSE") ]] && [[ -z $(command -v xbfuse) ]]; then
       printf '\e[33m:: %s\n\e[m' 'xbfuse not found.' \
              "Get it from: https://github.com/multimediamike/xbfuse"
       exit
     fi
 
-    # Get basename
+    # Exit if user doesn't have sufficient permission on mountpoint.
+    mkdir -p "$MNTDIR" || exit
+
+    # Get basename.
     XISO="${1##*/}"
     XISO="$MNTDIR/${XISO%.*}"
 
@@ -103,7 +131,7 @@ case $1 in
       printf '\e[31m:: %s\n\e[m' 'Aborted.' "$XISO is not empty."
     else
       mkdir -p "$XISO"
-      xbfuse "$1" "$XISO"
+      "$XBFUSE" "$1" "$XISO"
       printf ':: %s\n' "$1" 'has been successfully mounted on:' "$XISO"
     fi
   ;;
