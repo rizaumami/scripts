@@ -45,17 +45,18 @@
 # VARIABLES --------------------------------------------------------------------
 
 # Backup filename.
-BKPNAME="$(date "+%F")-megabkp"
+BKPNAME="$(date "+%F")-$(uname -n)-megabkp"
 # Output archived files.
-BKPDIR="/mnt/shared/MEGAsync"
+BKPDIR="/mnt/docs/MEGAsync"
 # Files to be backed up.
 declare -a BKPFILES=( \
   "$HOME/.gnupg" \
   "$HOME/.ssh" \
   "$HOME/.password-store" \
-  /mnt/datahdd/Bizz \
-  /mnt/datahdd/Notes \
-  '/mnt/datahdd/Tugas SD/Administrasi Kelas/2020-2021/Semester I/Administrasi Guru Kelas VI 2020-2021.1.ods'
+  '/mnt/docs/Bizz' \
+  '/mnt/docs/Notes' \
+  '/mnt/docs/Tugas SD/Administrasi Kelas/2022-2023/Semester 2/Administrasi Guru Kelas V 2022-2023.2.ods' \
+  '/mnt/docs/Tugas SD/Administrasi Kelas/2022-2023/Semester 2/raw-grades_2022-2023.2.ods'
 )
 # Do not archive these files
 declare -a EXCLUDED=(bibilintik PPOB)
