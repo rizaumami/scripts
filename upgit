@@ -1,0 +1,106 @@
+#!/usr/bin/env bash
+
+# Mass update git repositories.
+# Only update repos in PWD (maxdepth 1)
+# If there are recursive repos then you need to cd into the repo's root folder.
+#
+# Dependencies:
+#
+# Sahri Riza Umami
+#   v0.1 - 31/03/2022 21:01:16
+#        - Initial release
+#
+# LICENSE ----------------------------------------------------------------------
+#
+# This is free and unencumbered software released into the public domain.
+#
+# Anyone is free to copy, modify, publish, use, compile, sell, or
+# distribute this software, either in source code form or as a compiled
+# binary, for any purpose, commercial or non-commercial, and by any
+# means.
+#
+# In jurisdictions that recognize copyright laws, the author or authors
+# of this software dedicate any and all copyright interest in the
+# software to the public domain. We make this dedication for the benefit
+# of the public at large and to the detriment of our heirs and
+# successors. We intend this dedication to be an overt act of
+# relinquishment in perpetuity of all present and future rights to this
+# software under copyright law.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+# IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR
+# OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+# ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+# OTHER DEALINGS IN THE SOFTWARE.
+#
+# For more information, please refer to <http://unlicense.org>
+#
+# ------------------------------------------------------------------------------
+
+# Checking dependencies:
+declare -a DEPS=(git)
+for ((NUM=${#DEPS[@]},i=0; i<NUM;i++)); do
+  if command -v "${DEPS[i]}" &>/dev/null ; then
+    unset -v 'DEPS[i]'
+  fi
+done
+
+# Exit if dependency not found.
+if [[ "${#DEPS[@]}" -gt 0 ]]; then
+  printf '\e[31m!! %s\n\e[m' 'Package(s) not found'
+  printf '\e[33m:: %s\n\e[m' 'Install the proper distribution package for your system:'
+  printf '   - %s\n' "${DEPS[@]}"
+  exit 1
+fi
+
+# VARIABLES --------------------------------------------------------------------
+
+# FUNCTIONS --------------------------------------------------------------------
+
+git_pull() {
+  while read -r repo; do
+    printf '\e[1;32m:: %s\n\e[m' "Updating ${repo%/*}"
+    (
+    cd "${repo%/*}" || exit
+    git pull
+    )
+  done < <(find . -mindepth "$1" -maxdepth "$1" -type d | sort | grep -w ".git$")
+}
+
+print_usage() {
+  printf '%s\n' "
+  ${0##*/} will mass update git repositories in the current directory.
+
+  Usage: ${0##*/} OPTION
+
+  OPTION:
+    -d  --depth       Directory levels to be processed.
+                      1 is current working directory (default).
+
+  Example:
+    ${0##*/}          Update repositories in the current directory (default).
+
+    ${0##*/} -d 2     Update repositories in current directory
+                      and one directories below it.
+"
+  exit
+}
+
+# MAIN -------------------------------------------------------------------------
+
+if [[ "$#" -eq 0 ]]; then
+  git_pull 2
+elif [[ "$#" -eq 2 ]]; then
+  case $1 in
+    -d|--depth)
+      git_pull $(($2+1))
+    ;;
+    *)
+      print_usage
+    ;;
+  esac
+else
+  print_usage
+fi

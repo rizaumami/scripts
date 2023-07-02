@@ -9,22 +9,12 @@
 # - xbfuse
 #   Get it from https://github.com/multimediamike/xbfuse.
 #
-#
-# $HOME/.local/share/nemo/actions/xisomount.nemo_action ------------------------
-#
-# [Nemo Action]
-# Name=Mount Xbox ISO
-# Comment=Mount XISO (The Original Xbox's ISO)
-# Selection=s
-# Exec=/home/iza/.local/bin/xbmount %F
-# Stock-Id=gtk-cdrom
-# Extensions=iso;
-#
 # CHANGELOG --------------------------------------------------------------------
 #
 # Sahri Riza Umami
 # v0.1  - 2021/01/28 21:30:03
 #         Initial realase.
+# v0.2  - 2023/07/02 18:27:58
 #
 # LICENSE ----------------------------------------------------------------------
 #
@@ -57,6 +47,7 @@
 
 # VARIABLES --------------------------------------------------------------------
 
+MOUNTED=false
 # Mount directory.
 # $HOME is preferred because mounted xiso would be shown in GUI file manager.
 MNTDIR="$HOME/XBMount"
@@ -65,15 +56,39 @@ XBFUSE="$HOME/.local/bin/xbfuse"
 
 # FUNCTIONS --------------------------------------------------------------------
 
+is_mounted() {
+  if grep -qe "${1// /\\\\040}" /etc/mtab; then
+    MOUNTED=true
+  fi
+}
+
+print() {
+  printf ':: %s\n' "$@"
+}
+
+# Print message in green.
+print_g() {
+  printf '\e[32m:: %s\n\e[m' "$@"
+}
+
+# Print message in brown.
+print_w() {
+  printf '\e[33m:: %s\n\e[m' "$@"
+}
+
 print_usage() {
   printf '%s\n' "
- Usage: ${0##*/} ARG
+Usage: ${0##*/} OPTIONS
 
- ARG can be -h or --help to print this text, or XISO file to be mounted.
+OPTIONS:
+  -na --nemo       Create Nemo action file.
+  -h --help        Print this text and then exit.
+  or XISO file to be mounted.
 
- Example:
-   - ${0##*/} -h
-   - ${0##*/} $HOME/CoolGame.iso
+Example:
+  - ${0##*/} -h
+  - ${0##*/} -na
+  - ${0##*/} $HOME/CoolGame.iso
 "
   exit
 }
@@ -82,7 +97,8 @@ print_usage() {
 
 # Clean up unused mountpoint.
 while read -r mountdir; do
-  if grep -qe "${mountdir// /\\\\040}" /etc/mtab; then
+  is_mounted "$mountdir"
+  if $MOUNTED; then
     true
   else
     rmdir "$mountdir"
@@ -90,31 +106,41 @@ while read -r mountdir; do
 done < <(find "$MNTDIR" -mindepth 1 -maxdepth 1 -type d)
 
 if [[ $# -eq 0 ]]; then
-  printf ' %s\n' 'No files specified.'
+  print_w 'No files specified.'
   print_usage
 fi
 
 if [[ $# -gt 1 ]]; then
-  printf ' %s\n' 'Too much arguments.'
+  print_w 'Too much arguments.'
   print_usage
 fi
 
 case $1 in
   -h|--help)
-    printf ' %s\n' "${0##*/} is an xbfuse wrapper script to mount XISO (Microsoft Xbox ISO format)."
+    echo -e "\n${0##*/} is an xbfuse wrapper script to mount XISO (Microsoft Xbox ISO format)."
     print_usage
   ;;
+  -na|--nemo)
+  echo "[Nemo Action]
+Name=Mount Xbox ISO
+Comment=Mount XISO (The Original Xbox's ISO)
+Selection=s
+Exec=$0 %F
+Stock-Id=gtk-cdrom
+Extensions=iso;" > "$HOME/.local/share/nemo/actions/xisomount.nemo_action"
+  ;;
   *)
-    if [[ ! -f $1 ]]; then
-      zenity --warning --title='File not found' --text="$1 not found."
-      printf '\e[31m:: %s\n\e[m' "Cannot mount $1" 'No such file'
+    # Check if xbfuse exist in user's PATH.
+    if [[ -z $(command -v "$XBFUSE") ]] && [[ -z $(command -v xbfuse) ]]; then
+      print_w 'xbfuse not found.' \
+              "Get it from: https://github.com/multimediamike/xbfuse"
       exit
     fi
 
-    # Check if xbfuse exist in user's PATH.
-    if [[ -z $(command -v "$XBFUSE") ]] && [[ -z $(command -v xbfuse) ]]; then
-      printf '\e[33m:: %s\n\e[m' 'xbfuse not found.' \
-             "Get it from: https://github.com/multimediamike/xbfuse"
+    # Check if input exist.
+    if [[ ! -f $1 ]]; then
+      zenity --warning --title='File not found' --text="$1 not found."
+      print_w "Cannot mount $1" 'No such file'
       exit
     fi
 
@@ -127,12 +153,25 @@ case $1 in
 
     # If the mountpoint is in mtab, then probably the file is already mounted
     # or the mountpoint is in use to mount another file. Better to avoid it.
-    if grep -q "$XISO" /etc/mtab; then
-      printf '\e[31m:: %s\n\e[m' 'Aborted.' "$XISO is not empty."
+    is_mounted "$XISO"
+    if $MOUNTED; then
+      print_w 'Aborted.' "$XISO is not empty."
+      exit
+    fi
+
+    mkdir -p "$XISO"
+    "$XBFUSE" "$1" "$XISO"
+    # user_allow_other - Using the allow_other mount option works fine as root,
+    # in order to have it work as user you need user_allow_other in
+    # /etc/fuse.conf as well. (This option allows users to use the allow_other
+    # option.) You need allow_other if you want users other than the owner to
+    # access a mounted fuse.
+    #"$XBFUSE" "$1" "$XISO" -o allow_other,default_permissions
+    is_mounted "$XISO"
+    if $MOUNTED; then
+      print_g "$1" 'has been successfully mounted on:' "$XISO"
     else
-      mkdir -p "$XISO"
-      "$XBFUSE" "$1" "$XISO"
-      printf ':: %s\n' "$1" 'has been successfully mounted on:' "$XISO"
+      print_w "Unable to mount ${1}."
     fi
   ;;
 esac
