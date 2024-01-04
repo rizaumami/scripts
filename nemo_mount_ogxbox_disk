@@ -1,0 +1,184 @@
+#!/usr/bin/env bash
+set -euo pipefail
+IFS=$'\n\t'
+
+# This is nemo action Bash script to mount the original Xbox disk image.
+#
+# 1.  Put this script in your $PATH
+# 2.  Create ~/.local/share/nemo/actions/mount_xbox_disk.nemo_action with these lines:
+#
+#     [Nemo Action]
+#     Name=Mount OG Xbox Disk
+#     Comment=Mount OG Xbox disk using fatxfs
+#     Selection=s
+#     Exec=/home/iza/.local/bin/nemo_mount_ogxbox_disk %F
+#     Stock-Id=gtk-harddisk
+#     Extensions=img;qcow2;
+#     Dependencies=dd;fatxfs;grep;od;yad;
+#
+#     Exec line must be in absolute path.
+#
+# Dependencies:
+# fatx: (https://github.com/mborgerson/fatx).
+#
+# Sahri Riza Umami
+#   v0.1 - 2024/01/04 09:57:51
+#        - Initial release
+#
+# LICENSE ----------------------------------------------------------------------
+#
+# This is free and unencumbered software released into the public domain.
+#
+# Anyone is free to copy, modify, publish, use, compile, sell, or
+# distribute this software, either in source code form or as a compiled
+# binary, for any purpose, commercial or non-commercial, and by any
+# means.
+#
+# In jurisdictions that recognize copyright laws, the author or authors
+# of this software dedicate any and all copyright interest in the
+# software to the public domain. We make this dedication for the benefit
+# of the public at large and to the detriment of our heirs and
+# successors. We intend this dedication to be an overt act of
+# relinquishment in perpetuity of all present and future rights to this
+# software under copyright law.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+# IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR
+# OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+# ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+# OTHER DEALINGS IN THE SOFTWARE.
+#
+# For more information, please refer to <http://unlicense.org>
+#
+# ------------------------------------------------------------------------------
+
+# Checking dependencies:
+declare -a DEPS=(dd fatxfs grep od yad)
+for ((NUM=${#DEPS[@]},i=0; i<NUM;i++)); do
+  if command -v "${DEPS[i]}" &>/dev/null ; then
+    unset -v 'DEPS[i]'
+  fi
+done
+
+# Exit if dependency not found.
+if [[ "${#DEPS[@]}" -gt 0 ]]; then
+  echo    'Package(s) not found'
+  echo    'Install the proper distribution package for your system:'
+  printf  ' - %s\n' "${DEPS[@]}"
+  zenity --error --title='Missing dependency' --text="<b>$(printf ' - %s\n' "${DEPS[@]}")</b>"
+  exit 1
+fi
+
+# VARIABLES --------------------------------------------------------------------
+
+MNT="${HOME}/XBMount/${1##*/}_"
+PARTINFO='/tmp/partinfo'
+declare -A XPART=( [e]="0" [c]="1" [x]="2" [y]="3" [z]="4" [f]="5" [g]="6" )
+DIALOG=( "$(command -v yad)" --width=400 --mouse --add-preview )
+
+# FUNCTIONS --------------------------------------------------------------------
+
+print_usage() {
+  printf '%s\n' "
+  ${0##*/}
+
+  Usage:
+
+  OPTION
+
+  Example:
+    -
+"
+  exit
+}
+
+# MAIN -------------------------------------------------------------------------
+
+# Run script as root but preserve environment needed for regular user
+# such mountpoint and opening filemanager as regular user.
+if [[ "$EUID" -ne 0 ]]; then
+  if [[ ${1##*.} == 'qcow2' ]]; then
+    "${DIALOG[@]}" --title='Warning' --image=dialog-warning --window-icon=dialog-warning --text='<b>This will unmounting mounted partition of this disk.</b>'
+  fi
+  "${DIALOG[@]}" --entry --hide-text --no-buttons --title='Password' --entry-label="<b>[sudo] password for $(whoami):</b>" | sudo -S -E "$0" "$@"
+  exit
+fi
+
+DISK="$1"
+
+if [[ ${1##*.} == 'qcow2' ]]; then
+  # This is dirty. I don't know how to mount multi partition of qcow2.
+  # So we forced probe > unmount > disconnect > reconnect.
+  sudo modprobe nbd max_part=8 &>/dev/null
+  if grep "${DISK##*/}" /etc/mtab &>/dev/null; then
+    sudo umount -l "$(grep -o "${MNT}." /etc/mtab)"
+  fi
+  sudo qemu-nbd --disconnect /dev/nbd0 &>/dev/null
+  sudo qemu-nbd --connect=/dev/nbd0 "$DISK"
+  DISK='/dev/nbd0'
+fi
+
+# Create blank file if somehow dd failed to dump partition info.
+if ! dd if="$DISK" of="$PARTINFO" bs=512 count=1 status=none &>/dev/null; then
+  fallocate -l 512 "$PARTINFO"
+fi
+
+mapfile -t SECTOR < <(od -t x4 "$PARTINFO" | awk '/80000000/{ print "0x"$3"*0x200 0x"$4"*0x200" }')
+
+if [[ ${#SECTOR[@]} -eq 0 ]]; then
+  # $1 doesn't have partition table. Trying retail offset and size.
+  SECTOR=(
+    '0x0055f400*0x200 0x009896b0*0x200'
+    '0x00465400*0x200 0x000fa000*0x200'
+    '0x00000400*0x200 0x00177000*0x200'
+    '0x00177400*0x200 0x00177000*0x200'
+    '0x002ee400*0x200 0x00177000*0x200'
+  )
+fi
+
+# Retail disk partitions.
+PARTS=( e c x y z 'Unmount All' )
+
+if [[ ${#SECTOR[@]} -eq 6 ]]; then
+  PARTS=( e c x y z f 'Unmount All' )
+elif [[ ${#SECTOR[@]} -eq 7 ]]; then
+  PARTS=( e c x y z f g 'Unmount All' )
+fi
+
+# Do not offer mounted partition:
+for ((NUM=${#PARTS[@]},i=0; i<NUM;i++)); do
+  if grep -i "${MNT}${PARTS[i]}" /etc/mtab &>/dev/null ; then
+    unset -v 'PARTS[i]'
+  fi
+done
+
+# Form comma separated values string.
+DRVS="$(printf ',%s' "${PARTS[@]}")"
+DRVS="${DRVS:1}"
+
+DRV=$("${DIALOG[@]}" --form --title='Xbox Drive Mount' --image=gtk-harddisk --window-icon=gtk-harddisk --separator='' --item-separator="," --field="<b>Partition (Drive Letter)</b>::"CB "${DRVS^^}")
+
+if [[ $DRV == 'UNMOUNT ALL' ]]; then
+  sudo umount -l "${MNT}"*
+  exit
+fi
+
+MNT="${MNT}${DRV,,}"
+
+# Mountpoint must empty to satisfy FUSE
+if [[ -d $MNT ]]; then
+  if find "$MNT" -mindepth 1 -maxdepth 1 -empty | grep -q .; then
+    "${DIALOG[@]}" --title='Error' --image=dialog-error --window-icon=dialog-error --text="${MNT}\n<b>fuse: mountpoint is not empty</b>"
+    exit
+  fi
+else
+  su "${HOME##*/}" -c "mkdir -p $MNT"
+fi
+
+DRV="${XPART[${DRV,,}]}"
+LBAStart=$(printf '0x%x' "$((${SECTOR[$DRV]::16}))")
+LBASize=$(printf '0x%x' "$((${SECTOR[$DRV]:(-16)}))")
+sudo fatxfs -o allow_other "$DISK" "$MNT" --offset="${LBAStart}" --size="${LBASize}"
+su "${HOME##*/}" -c "nemo -t --existing-window $MNT"
