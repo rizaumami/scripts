@@ -3,25 +3,23 @@ A collection of scripts.
 
 ## How to
 
-- Clone this repo
+- Clone this repo.
 
   ```bash
   git clone https://github.com/rizaumami/scripts
   ```
 
-- Edit `~/.bashrc` or `~/.bash_profile` or `~/.bash_login` or `~/.profile` to include `scripts` folder into our PATH. \
-For example, if the path to `scripts` folder is `$HOME/Software/scripts`. Insert lines below into one of the files above.
+- Run the `INSTALL` script.
 
   ```bash
-  if [ -d "$HOME/Software/scripts" ]; then
-    PATH="$HOME/Software/scripts:$PATH"
-  fi
+  $ ./INSTALL
+  :: Please select the PATH where the scripts will be installed:
+  1) $HOME/.local/bin	 3) /usr/bin		  5) /usr/local/games
+  2) /usr/local/bin	 4) /bin		  6) /usr/games
+
+  #?
   ```
 
-- Relogin. Or just source the edited file. E.g. if the edited file is `~/.profile`:
-
-  ```bash
-  source ~/.profile
-  ```
+- Type the number to install this scripts into that PATH.
 
 - Profit! Now we can directly call the scripts everywhere whitin terminal.

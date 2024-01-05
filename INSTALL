@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+set -euo pipefail
+IFS=$'\n\t'
+
+# Get the current working directory.
+HERE=$(dirname "$(readlink -f "${0}")")
+
+# Print green text,
+print() { printf '\e[32m:: %s\n\e[m' "$@" ;}
+
+print 'Please select the PATH where the scripts will be installed:'
+
+mapfile -d ':' -t MYPATH < <(echo "${PATH}")
+
+select path in "${MYPATH[@]}"; do
+  TARGET="$path"
+  break
+done
+
+if [[ -z "$TARGET" ]]; then
+  # Something wrong
+  exit
+fi
+
+if ! install -m 755 "${HERE}/scripts/"* "$TARGET" &>/dev/null; then
+  sudo install -m 755  "${HERE}/scripts/"* "$TARGET"
+fi
+
+print "Scripts has been installed to $TARGET"
