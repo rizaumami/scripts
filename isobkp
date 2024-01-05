@@ -1,0 +1,149 @@
+#!/usr/bin/env bash
+
+# This is script to backup files or folders into an ISO archive.
+# An ISO has benefits of (default to) read only and in monolithic file.
+#
+# Dependencies:
+# - xorriso
+#
+# Sahri Riza Umami
+#   v0.1 - 12/09/2023 18:24:56
+#        - Initial release
+#   v0.2 - 2024/01/05 14:04:53
+#        - Better script
+#
+# LICENSE ----------------------------------------------------------------------
+#
+# This is free and unencumbered software released into the public domain.
+#
+# Anyone is free to copy, modify, publish, use, compile, sell, or
+# distribute this software, either in source code form or as a compiled
+# binary, for any purpose, commercial or non-commercial, and by any
+# means.
+#
+# In jurisdictions that recognize copyright laws, the author or authors
+# of this software dedicate any and all copyright interest in the
+# software to the public domain. We make this dedication for the benefit
+# of the public at large and to the detriment of our heirs and
+# successors. We intend this dedication to be an overt act of
+# relinquishment in perpetuity of all present and future rights to this
+# software under copyright law.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+# IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR
+# OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+# ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+# OTHER DEALINGS IN THE SOFTWARE.
+#
+# For more information, please refer to <http://unlicense.org>
+#
+# ------------------------------------------------------------------------------
+
+# Print message in brown.
+print_w() {
+  printf '\e[33m%s\n\e[m' "$@"
+}
+
+# Checking dependencies:
+if ! command -v xorriso &>/dev/null ; then
+  print_w 'xorriso not found.'
+  echo 'This script depend on xorriso to works properly.'
+  exit 1
+fi
+
+# VARIABLES --------------------------------------------------------------------
+
+PUBLISHER='Sahri Riza Umami'
+
+# FUNCTIONS --------------------------------------------------------------------
+
+print_usage() {
+  printf '%s\n' "
+  ${0##*/} is a script to backup file or directory into an ISO file.
+
+  Usage: ${0##*/} OPTION
+
+  OPTION:
+    -i  Directory to backup.
+    -o  Output ISO file (default to input directory).
+    -v  ISO's volume ID.
+
+  Example:
+    - ${0##*/} -i /mnt/data/git
+      Will backup /mnt/data/git into /mnt/data/git.iso
+
+    - ${0##*/} -i /mnt/data/git -o /tmp
+      Will backup /mnt/data/git into /tmp/git.iso
+
+    - ${0##*/} -i /mnt/data/git -o /tmp/CoolSoft.iso
+      Will backup /mnt/data/git into /tmp/CoolSoft.iso
+"
+  exit
+}
+
+# MAIN -------------------------------------------------------------------------
+
+# If this script run without argument.
+if [[ ${#@} -eq 0 ]]; then
+  print_usage
+fi
+
+while getopts ":hi:o:v:" opt; do
+  case $opt in
+    h)
+      print_usage
+    ;;
+    i)
+      INPUT="$OPTARG"
+      VOLID="${OPTARG##*/}"
+    ;;
+    o)
+      if [[ ${OPTARG##*.} == 'iso' ]]; then
+        OUTPUT="$OPTARG"
+      else
+        OUTPUT="${OPTARG}/${INPUT##*/}.iso"
+        if [[ ! -d $OPTARG ]]; then
+          print_w "$OPTARG: No such file or directory."
+          exit 1
+        fi
+      fi
+    ;;
+    v)
+      VOLID="$OPTARG"
+    ;;
+    \?)
+      print_w "Wrong option: -$OPTARG" >&2
+      exit 1
+    ;;
+    :)
+      print_w "Option -$OPTARG need an argument." >&2
+      exit 1
+    ;;
+  esac
+done
+
+if [[ -z $INPUT ]]; then
+  echo "No input given."
+  exit 1
+fi
+
+# If no output given, place output ISO in input directory.
+if [[ -z $OUTPUT ]]; then
+  OUTPUT="${INPUT}.iso"
+fi
+
+if [[ -f $OUTPUT ]]; then
+  print_w 'Found an archive with a same name:' "$OUTPUT" 'Aborted.'
+  exit 2
+fi
+
+# TODO: Accept many files as input. As for now it's either directory or file.
+if [[ -f $INPUT ]]; then
+  #xorrisofs -R -J -N -V "$VOLID" -p "$PUBLISHER" -d -hide-rr-moved "$INPUT" -o "$OUTPUT"
+  xorriso -for_backup -volid "$VOLID" -publisher "$PUBLISHER" -dev stdio:"$OUTPUT" -map "$INPUT" "/${INPUT##*/}"
+else
+  xorriso -for_backup -volid "$VOLID" -publisher "$PUBLISHER" -dev stdio:"$OUTPUT" -map "${INPUT}" /
+fi
+
