@@ -14,7 +14,7 @@ A collection of scripts.
   ```bash
   $ ./INSTALL
   :: Please select the PATH where the scripts will be installed:
-  1) $HOME/.local/bin	 3) /usr/bin		  5) /usr/local/games
+  1) /home/iza/.local/bin	 3) /usr/bin		  5) /usr/local/games
   2) /usr/local/bin	 4) /bin		  6) /usr/games
 
   #?
