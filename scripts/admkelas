@@ -1,0 +1,162 @@
+#!/usr/bin/env bash
+
+# So, I need a seamless sync between my work laptop and home PC.
+# The files synced need to be protected/encrypted.
+# This script arguably not as seamless as it seems, but I can now sync with
+# encrypted files betweem laptop and PC only by running a single command.
+#
+# Dependencies:
+# - pass    - For password protect the files (https://www.passwordstore.org/)
+# - 7zip    - For archiving and encrypting the files
+# - megacmd - For cloud storage with scripting support (https://mega.io/)
+# - rsync   - For syncing new files to target folder.
+#
+# Notes:
+# - You need to install and set pass
+# - You need to install megacmd and login to your account
+#
+# Sahri Riza Umami
+#   v0.1 - 2024/02/18 10:46:36
+#        - Initial release
+#
+# LICENSE ----------------------------------------------------------------------
+#
+# This is free and unencumbered software released into the public domain.
+#
+# Anyone is free to copy, modify, publish, use, compile, sell, or
+# distribute this software, either in source code form or as a compiled
+# binary, for any purpose, commercial or non-commercial, and by any
+# means.
+#
+# In jurisdictions that recognize copyright laws, the author or authors
+# of this software dedicate any and all copyright interest in the
+# software to the public domain. We make this dedication for the benefit
+# of the public at large and to the detriment of our heirs and
+# successors. We intend this dedication to be an overt act of
+# relinquishment in perpetuity of all present and future rights to this
+# software under copyright law.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+# IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR
+# OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+# ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+# OTHER DEALINGS IN THE SOFTWARE.
+#
+# For more information, please refer to <http://unlicense.org>
+#
+# ------------------------------------------------------------------------------
+
+# VARIABLES --------------------------------------------------------------------
+
+# Backup filename.
+BKPNAME='Administrasi Kelas 2024.2'
+# Files to back up and then uploaded.
+INPUT='/mnt/data/Tugas SD/Administrasi Kelas/2023-2024/Semester 2'
+# Where to put downloaded files.
+OUTPUT="$INPUT"
+# The entry in pass to password protect our archive.
+PASS='megasync'
+# Print text in brown.
+print_w() { printf '\e[33m:: %s\n\e[m' "$@" ;}
+
+# FUNCTIONS --------------------------------------------------------------------
+
+# Checking dependencies
+checking_deps() {
+  declare -a DEPS=(7z mega-get mega-put pass rsync)
+  for ((NUM=${#DEPS[@]},i=0; i<NUM;i++)); do
+    if command -v "${DEPS[i]}" &>/dev/null ; then
+      unset -v 'DEPS[i]'
+    fi
+  done
+
+  # Exit if dependencies not found.
+  if [[ "${#DEPS[@]}" -gt 0 ]]; then
+    printf '\e[31m!! %s\n\e[m'  'Package(s) not found'
+    printf '\e[33m:: %s\n\e[m' 'Install the proper distribution package for your system:'
+    printf '   - %s\n' "${DEPS[@]}"
+    exit 1
+  fi
+}
+
+print_usage() {
+  printf '%s\n' "
+  So, I need a seamless sync between my work laptop and home PC.
+  The files synced need to be protected/encrypted.
+  This script arguably not as seamless as it need to be, but I can now encrypt
+  and then sync between laptop and PC only by running a single command.
+
+  Usage: ${0##*/} OPTION
+
+  OPTION:
+    -d    Download files.
+    -h    Print this text and exit.
+    -i    Input folder.
+          Default to ${INPUT}.
+          DO NOT contain slash at its end of string.
+    -u    Upload files.
+    -o    Where to sync downloaded file.
+          Default to ${INPUT}.
+    -v    Script's version.
+"
+  exit
+}
+
+# MAIN -------------------------------------------------------------------------
+
+# If this script run without argument.
+[[ ${#@} -eq 0 ]] && print_usage
+
+checking_deps
+
+while getopts ":dhi:o:uv" opt; do
+  case $opt in
+    d)
+      DOWNLOAD=true
+    ;;
+    h)
+      print_usage
+    ;;
+    i)
+      INPUT="$OPTARG"
+    ;;
+    o)
+      OUTPUT="$OPTARG"
+    ;;
+    u)
+      UPLOAD=true
+    ;;
+    v)
+      echo ':: admkelas v0.1 (2024.02.18) - written by si_kabayan'
+      exit
+    ;;
+    \?)
+      print_w "Wrong option: -$OPTARG" >&2
+      exit 1
+    ;;
+    :)
+      print_w "Option -$OPTARG need an argument" >&2
+      exit 1
+    ;;
+  esac
+done
+
+# Pass won't works directly in script because its output ended with newline.
+# This mapfile slowdon the script but will remove the newline.
+mapfile -t PASSWORD < <(pass $PASS)
+
+rm -f "/tmp/${BKPNAME}.7z"
+
+if ${DOWNLOAD:-false}; then
+  rm -fr "/tmp/${INPUT##*/}/"
+  mega-get /"${BKPNAME}.7z" /tmp
+  7z x -bso0 -p"${PASSWORD[0]}" -o/tmp "/tmp/${BKPNAME}.7z"
+  rsync -av --delete "/tmp/${INPUT##*/}/" "$OUTPUT"
+fi
+
+if ${UPLOAD:-false}; then
+  7z a -bso0 -mhe=on -p"${PASSWORD[0]}" -t7z -m0=lzma -mx=9 -mfb=64 -md=32m -ms=on "/tmp/${BKPNAME}.7z" "$INPUT"
+  mega-put "/tmp/${BKPNAME}.7z"
+fi

@@ -117,7 +117,6 @@ if $ISQCOW; then
       sudo umount -l "${mnt//\\040/ }"
     fi
   done < /etc/mtab
-  echo ';;;;;;;;;;;;;;;;;;;;;'
   # This is dirty. I don't know how to mount multi partition of a qcow2.
   sudo modprobe nbd max_part=8 &>/dev/null
   sudo qemu-nbd --disconnect /dev/nbd0 &>/dev/null
